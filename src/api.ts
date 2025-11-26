@@ -228,6 +228,8 @@ export const deleteAllRecords = async (
     return totalDeleted;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const batchWriteRecords = async (
     airtable: AirtableClient,
     baseId: string,
@@ -236,6 +238,9 @@ export const batchWriteRecords = async (
     schemaMap: Record<string, string>,
 ): Promise<number> => {
     const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
+    const BASE_DELAY_MS = 200; // Base delay between requests to respect rate limits (5 req/sec = 200ms between requests)
+    const RETRY_DELAYS_MS = [250, 500, 1000]; // Exponential backoff delays for retries
+
     let created = 0;
     let skipped = 0;
 
@@ -252,7 +257,6 @@ export const batchWriteRecords = async (
         });
 
         if (!hasValidFields) {
-            console.warn(batch)
             console.warn(
                 `⚠️ Skipping record ${i + 1}/${records.length}: All fields are null/undefined after normalization`,
             );
@@ -260,32 +264,103 @@ export const batchWriteRecords = async (
             continue;
         }
 
-        const res = await airtable.fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ records: batch }),
-        });
-        const json = await res.json();
+        // Try to create the record with retries
+        let attemptCount = 0;
+        let recordCreated = false;
+        const maxAttempts = RETRY_DELAYS_MS.length + 1; // Initial attempt + retries
 
-        if (json.error) {
-            console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
-            console.error('Record data:', JSON.stringify(batch, null, 2));
-            console.error('Airtable error:', JSON.stringify(json, null, 2));
-            throw new Error(json.error.message || JSON.stringify(json.error));
+        while (attemptCount < maxAttempts && !recordCreated) {
+            attemptCount++;
+
+            try {
+                const res = await airtable.fetch(baseUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ records: batch }),
+                });
+
+                if (!res.ok) {
+                    // Handle rate limiting (HTTP 429)
+                    if (res.status === 429) {
+                        if (attemptCount < maxAttempts) {
+                            const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                            console.warn(
+                                `⚠️ Rate limited on record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`,
+                            );
+                            await sleep(retryDelay);
+                            continue;
+                        } else {
+                            throw new Error('Rate limit exceeded after all retry attempts');
+                        }
+                    }
+
+                    // Handle other HTTP errors
+                    const errorText = await res.text();
+                    console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
+                    console.error(`HTTP Status: ${res.status} ${res.statusText}`);
+                    console.error('Response:', errorText);
+
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
+                    } catch {
+                        throw new Error(`HTTP ${res.status}: ${errorText}`);
+                    }
+                }
+
+                const json = await res.json();
+
+                if (json.error) {
+                    console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
+                    console.error('Airtable error:', JSON.stringify(json, null, 2));
+                    throw new Error(json.error.message || JSON.stringify(json.error));
+                }
+
+                const recordsCreated = (json.records || []).length;
+
+                if (recordsCreated === 0) {
+                    // No records created, might be rate limiting or silent rejection
+                    if (attemptCount < maxAttempts) {
+                        const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                        console.warn(
+                            `⚠️ Record ${i + 1}/${records.length} not created (attempt ${attemptCount}/${maxAttempts}), retrying in ${retryDelay}ms...`,
+                        );
+                        await sleep(retryDelay);
+                        continue;
+                    } else {
+                        console.warn(
+                            `⚠️ Record ${i + 1}/${records.length} was not created after ${maxAttempts} attempts`,
+                        );
+                        console.warn('Attempted record:', JSON.stringify(batch, null, 2));
+                        skipped++;
+                        recordCreated = true; // Exit retry loop
+                    }
+                } else {
+                    created += recordsCreated;
+                    recordCreated = true; // Success, exit retry loop
+                }
+            } catch (error) {
+                // On error, retry if attempts remain
+                if (attemptCount < maxAttempts) {
+                    const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                    console.warn(
+                        `⚠️ Error on record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`,
+                    );
+                    console.warn('Error:', error instanceof Error ? error.message : String(error));
+                    await sleep(retryDelay);
+                } else {
+                    // Max attempts reached, rethrow error
+                    throw error;
+                }
+            }
         }
 
-        const recordsCreated = (json.records || []).length;
-        if (recordsCreated === 0) {
-            console.warn(
-                `⚠️ Record ${i + 1}/${records.length} was not created by Airtable (no error, but no record returned)`,
-            );
-            console.warn('Attempted record:', JSON.stringify(batch, null, 2));
-            skipped++;
+        // Rate limiting: wait before next request (except for the last record)
+        if (i < records.length - 1) {
+            await sleep(BASE_DELAY_MS);
         }
-
-        created += recordsCreated;
     }
 
     if (skipped > 0) {
