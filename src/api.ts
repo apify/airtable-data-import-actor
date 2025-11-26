@@ -9,7 +9,7 @@ import type {
 } from './types.js';
 
 export const getAirtableClient = async (input: ActorInput): Promise<AirtableClient> => {
-    const accountId = input['oAuthAccount.PxEIzE8praQReTn24'];
+    const accountId = input['oAuthAccount.4NisUztj4uOTblL9i'];
 
     const headers = { Authorization: `Bearer ${process.env.APIFY_TOKEN}` };
     const res = await fetch(

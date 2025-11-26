@@ -20,7 +20,7 @@ export interface DataMapping {
 }
 
 export interface ActorInput {
-    'oAuthAccount.PxEIzE8praQReTn24': string;
+    'oAuthAccount.4NisUztj4uOTblL9i': string;
     operation: OperationType;
     base: string;
     table: string;
