@@ -17,6 +17,13 @@
       "enum": ["append", "override", "create"],
       "default": "append"
     },
+    "clearOnCreate": {
+      "title": "Clear existing data when table exists (create mode only)",
+      "description": "Only applies when operation is 'create'. If true and the table already exists, all existing records will be deleted before importing (similar to 'override' mode). If false and the table already exists, an error will be thrown. If the table does not exist, it will be created regardless of this setting.",
+      "type": "boolean",
+      "editor": "checkbox",
+      "default": false
+    },
     "base": {
       "title": "Airtable base ID",
       "description": "The ID of the Airtable base where data will be imported (for example: appXXXXXXXXXXXXXX).",

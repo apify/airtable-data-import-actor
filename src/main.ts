@@ -17,7 +17,7 @@ try {
 
     validateInput(input);
 
-    const { operation, base: baseId, table: tableName, datasetId, uniqueId, dataMappings } = input;
+    const { operation, base: baseId, table: tableName, datasetId, uniqueId, dataMappings, clearOnCreate } = input;
 
     const cleanedMappings = dataMappings.filter((m) => m.target && m.target.trim() !== '');
 
@@ -26,7 +26,7 @@ try {
     const whoami = await fetchWhoAmI(airtable);
     console.log('Airtable user:', whoami);
 
-    const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings);
+    const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings, clearOnCreate);
 
     await ensureFieldsExist(airtable, baseId, tableMeta, cleanedMappings);
 
@@ -37,6 +37,10 @@ try {
 
     if (operation === 'override') {
         console.log(`Operation=override: deleting all records in "${tableName}"...`);
+        await deleteAllRecords(airtable, baseId, tableName);
+        console.log('All records deleted.');
+    } else if (operation === 'create' && clearOnCreate === true) {
+        console.log(`Operation=create with clearOnCreate=true: deleting all records in "${tableName}"...`);
         await deleteAllRecords(airtable, baseId, tableName);
         console.log('All records deleted.');
     }

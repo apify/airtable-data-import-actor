@@ -22,6 +22,7 @@ export interface DataMapping {
 export interface ActorInput {
     'oAuthAccount.4NisUztj4uOTblL9i': string;
     operation: OperationType;
+    clearOnCreate?: boolean;
     base: string;
     table: string;
     datasetId: string;

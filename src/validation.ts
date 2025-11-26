@@ -28,7 +28,8 @@ export const ensureTable = async (
     baseId: string,
     tableNameOrId: string,
     operation: OperationType,
-    dataMappings: DataMapping[]
+    dataMappings: DataMapping[],
+    clearOnCreate?: boolean
 ): Promise<AirtableTable> => {
     const tables = await fetchBaseSchema(airtable, baseId);
 
@@ -44,6 +45,17 @@ export const ensureTable = async (
 
         const newTables = await fetchBaseSchema(airtable, baseId);
         table = findTable(newTables, tableNameOrId);
+    } else if (table && operation === 'create') {
+        // Table already exists with 'create' operation
+        if (clearOnCreate === false) {
+            throw new Error(
+                `Table "${tableNameOrId}" already exists in base "${baseId}". ` +
+                    `Operation is set to "create" and "clearOnCreate" is false. ` +
+                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation.`
+            );
+        }
+        // If clearOnCreate is true or undefined (default behavior), allow it to proceed
+        // The data clearing will be handled in main.ts
     }
 
     if (!table) {
