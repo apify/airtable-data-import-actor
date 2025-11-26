@@ -66,9 +66,30 @@ export const createTableIfSupported = async (
     fields: Array<{ name: string; type: string }>
 ): Promise<void> => {
     const path = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
+
+    // Map field types to include required options
+    const mappedFields = fields.map((f) => {
+        const field: any = { name: f.name, type: f.type };
+
+        // Add empty options object for types that require it
+        if (f.type === 'number') {
+            field.options = { precision: 0 };
+        } else if (f.type === 'singleLineText' || f.type === 'multilineText') {
+            // Text fields don't require options
+        } else if (f.type === 'checkbox') {
+            field.options = { icon: 'check', color: 'greenBright' };
+        } else if (f.type === 'email' || f.type === 'url' || f.type === 'phoneNumber') {
+            // These don't require options
+        } else if (f.type === 'date') {
+            field.options = { dateFormat: { name: 'iso' } };
+        }
+
+        return field;
+    });
+
     const payload = {
         name: tableName,
-        fields: fields.map((f) => ({ name: f.name, type: f.type })),
+        fields: mappedFields,
     };
 
     try {
