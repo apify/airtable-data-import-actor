@@ -1,0 +1,14 @@
+{
+    "routes": [
+        {
+            "path": "/bases",
+            "method": "GET",
+            "handler": "src/routes/bases.js"
+        },
+        {
+            "path": "/tables",
+            "method": "GET",
+            "handler": "src/routes/tables.js"
+        }
+    ]
+}

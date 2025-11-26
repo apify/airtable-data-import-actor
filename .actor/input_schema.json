@@ -25,16 +25,24 @@
             "default": false
         },
         "base": {
-            "title": "Airtable base ID",
-            "description": "The ID of the Airtable base where data will be imported (for example: appXXXXXXXXXXXXXX).",
+            "title": "Airtable base",
+            "description": "Select the Airtable base where data will be imported.",
             "type": "string",
-            "editor": "textfield"
+            "editor": "select",
+            "actorRoutes": {
+                "optionsRoute": "/bases",
+                "dependencies": ["oAuthAccount.4NisUztj4uOTblL9i"]
+            }
         },
         "table": {
-            "title": "Airtable table name",
-            "description": "Name of the Airtable table to import into. If operation is 'create' and this table does not exist, the Actor will try to create it (if Airtable permissions and APIs allow).",
+            "title": "Airtable table",
+            "description": "Select the Airtable table to import into. If operation is 'create' and this table does not exist, the Actor will try to create it (if Airtable permissions and APIs allow).",
             "type": "string",
-            "editor": "textfield"
+            "editor": "select",
+            "actorRoutes": {
+                "optionsRoute": "/tables",
+                "dependencies": ["oAuthAccount.4NisUztj4uOTblL9i", "base"]
+            }
         },
         "datasetId": {
             "title": "Apify dataset ID",
