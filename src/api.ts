@@ -205,12 +205,14 @@ export const deleteAllRecords = async (
 
             console.log(`➡️ Deleting batch of ${batch.length} records…`, batch);
 
-            const deleteRes = await airtable.fetch(baseUrl, {
+            // Build URL with query parameters for deletion
+            const deleteUrl = new URL(baseUrl);
+            batch.forEach((id: string) => {
+                deleteUrl.searchParams.append('records[]', id);
+            });
+
+            const deleteRes = await airtable.fetch(deleteUrl.toString(), {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    records: batch.map((id: string) => ({ id })),
-                }),
             });
 
             const deleteJson = await deleteRes.json();
