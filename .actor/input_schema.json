@@ -1,0 +1,92 @@
+{
+  "title": "Import Apify dataset to Airtable",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "oAuthAccount.PxEIzE8praQReTn24": {
+        "title": "Airtable Account Id",
+        "description": "Airtable Account Id",
+        "type": "string",
+        "editor": "textfield"
+    },
+    "operation": {
+      "title": "Import operation",
+      "description": "How to handle records in the target Airtable table before importing. 'append' keeps existing records and adds new ones. 'override' deletes all existing records first, then imports. 'create' will create the table if it does not exist, otherwise it behaves like 'append'.",
+      "type": "string",
+      "editor": "select",
+      "enum": ["append", "override", "create"],
+      "default": "append"
+    },
+    "base": {
+      "title": "Airtable base ID",
+      "description": "The ID of the Airtable base where data will be imported (for example: appXXXXXXXXXXXXXX).",
+      "type": "string",
+      "editor": "textfield"
+    },
+    "table": {
+      "title": "Airtable table name",
+      "description": "Name of the Airtable table to import into. If operation is 'create' and this table does not exist, the Actor will try to create it (if Airtable permissions and APIs allow).",
+      "type": "string",
+      "editor": "textfield"
+    },
+    "datasetId": {
+      "title": "Apify dataset ID",
+      "description": "ID of the Apify dataset that contains the records you want to import.",
+      "type": "string",
+      "editor": "textfield"
+    },
+    "uniqueId": {
+      "title": "Unique ID source field (optional)",
+      "description": "Source field (using dot notation, e.g. 'url' or 'metadata.headers.age') used to detect duplicates. If provided, the Actor reads the mapped target field in Airtable and skips records whose ID already exists there.",
+      "type": "string",
+      "editor": "textfield"
+    },
+    "dataMappings": {
+      "title": "Field mappings",
+      "description": "List of mappings from Apify dataset fields (source) to Airtable fields (target). 'source' uses dot notation (e.g. 'metadata.headers.age'), 'target' is the Airtable field name. 'targetType' is 'existing' or 'new'. 'fieldType' describes the Airtable field type (e.g. 'singleLineText', 'multilineText', 'number').",
+      "type": "array",
+      "editor": "json",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source field",
+            "description": "Field path from the Apify dataset item. Supports dot notation (e.g. 'metadata.description')."
+          },
+          "target": {
+            "type": "string",
+            "title": "Target Airtable field",
+            "description": "Airtable field name where the value should be stored."
+          },
+          "targetType": {
+            "type": "string",
+            "title": "Target type",
+            "description": "'existing' if the field already exists in Airtable, 'new' if it should be created when missing.",
+            "enum": ["existing", "new"]
+          },
+          "fieldType": {
+            "type": "string",
+            "title": "Field type",
+            "description": "Airtable field type to use when creating a new field (e.g. 'singleLineText', 'multilineText', 'number', 'checkbox').",
+            "enum": [
+              "singleLineText",
+              "multilineText",
+              "number",
+              "checkbox"
+            ]
+          }
+        },
+        "required": ["source", "target", "targetType", "fieldType"]
+      }
+    }
+  },
+  "required": [
+    "oAuthAccount.PxEIzE8praQReTn24",
+    "operation",
+    "base",
+    "table",
+    "datasetId",
+    "dataMappings"
+  ]
+}
