@@ -26,7 +26,7 @@ try {
     const whoami = await fetchWhoAmI(airtable);
     console.log('Airtable user:', whoami);
 
-    const tableMeta = await ensureTable(airtable, baseId, tableName, operation);
+    const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings);
 
     await ensureFieldsExist(airtable, baseId, tableMeta, cleanedMappings);
 

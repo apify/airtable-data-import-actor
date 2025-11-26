@@ -27,14 +27,20 @@ export const ensureTable = async (
     airtable: AirtableClient,
     baseId: string,
     tableNameOrId: string,
-    operation: OperationType
+    operation: OperationType,
+    dataMappings: DataMapping[]
 ): Promise<AirtableTable> => {
     const tables = await fetchBaseSchema(airtable, baseId);
 
     let table = findTable(tables, tableNameOrId);
 
     if (!table && operation === 'create') {
-        await createTableIfSupported(airtable, baseId, tableNameOrId);
+        const fields = dataMappings.map((m) => ({
+            name: m.target,
+            type: m.fieldType,
+        }));
+
+        await createTableIfSupported(airtable, baseId, tableNameOrId, fields);
 
         const newTables = await fetchBaseSchema(airtable, baseId);
         table = findTable(newTables, tableNameOrId);
@@ -43,7 +49,7 @@ export const ensureTable = async (
     if (!table) {
         throw new Error(
             `Table "${tableNameOrId}" was not found in base "${baseId}". ` +
-                `If you intend to create it, use operation "create" and implement createTableIfSupported().`
+                `If you intend to create it, use operation "create".`
         );
     }
 

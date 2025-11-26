@@ -60,16 +60,56 @@ export const findTable = (
 };
 
 export const createTableIfSupported = async (
-    _airtable: AirtableClient,
+    airtable: AirtableClient,
     baseId: string,
-    tableName: string
+    tableName: string,
+    fields: Array<{ name: string; type: string }>
 ): Promise<void> => {
-    throw new Error(
-        `Table "${tableName}" does not exist in base "${baseId}". ` +
-            `Creating tables via the Airtable REST API is not generally available. ` +
-            `Please create the table manually in Airtable, or enable the schema mutation API ` +
-            `and implement createTableIfSupported().`
-    );
+    const path = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
+    const payload = {
+        name: tableName,
+        fields: fields.map((f) => ({ name: f.name, type: f.type })),
+    };
+
+    try {
+        const res = await airtable.fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const json = await res.json();
+
+        if (!res.ok || json.error) {
+            console.error('Airtable table creation error:', JSON.stringify(json, null, 2));
+            throw new Error(json.error?.message || 'Failed to create table');
+        }
+
+        console.log(`✅ Created table "${tableName}" with ${fields.length} fields`);
+    } catch (err) {
+        // If there's a conflict (table name already exists), try with a timestamped name
+        if (err instanceof Error && err.message.includes('name')) {
+            const uniqueTableName = `${tableName} ${new Date().toISOString()}`;
+            const patchedPayload = { ...payload, name: uniqueTableName };
+
+            const retryRes = await airtable.fetch(path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(patchedPayload),
+            });
+
+            const retryJson = await retryRes.json();
+
+            if (!retryRes.ok || retryJson.error) {
+                console.error('Airtable table creation error (retry):', JSON.stringify(retryJson, null, 2));
+                throw new Error(retryJson.error?.message || 'Failed to create table with unique name');
+            }
+
+            console.log(`✅ Created table "${uniqueTableName}" with ${fields.length} fields`);
+        } else {
+            throw err;
+        }
+    }
 };
 
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
