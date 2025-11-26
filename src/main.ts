@@ -50,14 +50,14 @@ try {
 
     if (uniqueId) {
         const uniqueMapping = cleanedMappings.find((m) => m.source === uniqueId);
-        if (uniqueMapping && uniqueMapping.target && uniqueMapping.targetType !== 'new') {
+        if (uniqueMapping && uniqueMapping.target) {
             uniqueTargetField = uniqueMapping.target;
             console.log(`Unique ID enabled. Reading existing values from Airtable field "${uniqueTargetField}"...`);
             uniqueIdSet = await fetchExistingUniqueIds(airtable, baseId, tableName, uniqueTargetField);
             console.log(`Found ${uniqueIdSet.size} existing unique IDs in Airtable.`);
         } else {
             console.log(
-                'uniqueId provided but mapping not found or marked as "new". ' +
+                'uniqueId provided but mapping not found. ' +
                     'Duplicate check will only consider new records within this run.',
             );
         }
