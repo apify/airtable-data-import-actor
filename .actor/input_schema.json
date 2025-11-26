@@ -3,7 +3,7 @@
   "type": "object",
   "schemaVersion": 1,
   "properties": {
-    "oAuthAccount.PxEIzE8praQReTn24": {
+    "oAuthAccount.4NisUztj4uOTblL9i": {
         "title": "Airtable Account Id",
         "description": "Airtable Account Id",
         "type": "string",
@@ -82,7 +82,7 @@
     }
   },
   "required": [
-    "oAuthAccount.PxEIzE8praQReTn24",
+    "oAuthAccount.4NisUztj4uOTblL9i",
     "operation",
     "base",
     "table",
