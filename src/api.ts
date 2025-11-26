@@ -237,12 +237,28 @@ export const batchWriteRecords = async (
 ): Promise<number> => {
     const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
     let created = 0;
+    let skipped = 0;
 
     for (let i = 0; i < records.length; i += 1) {
         const rawBatch = records.slice(i, i + 1);
         const batch = rawBatch.map((r) => ({
             fields: normalizeRecordFields(r.fields, schemaMap),
         }));
+
+        // Check if the record has any non-null fields
+        const hasValidFields = batch.some((record) => {
+            const fieldValues = Object.values(record.fields);
+            return fieldValues.some((v) => v !== null && v !== undefined);
+        });
+
+        if (!hasValidFields) {
+            console.warn(batch)
+            console.warn(
+                `⚠️ Skipping record ${i + 1}/${records.length}: All fields are null/undefined after normalization`,
+            );
+            skipped++;
+            continue;
+        }
 
         const res = await airtable.fetch(baseUrl, {
             method: 'POST',
@@ -254,12 +270,26 @@ export const batchWriteRecords = async (
         const json = await res.json();
 
         if (json.error) {
-            console.log(batch);
+            console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
+            console.error('Record data:', JSON.stringify(batch, null, 2));
             console.error('Airtable error:', JSON.stringify(json, null, 2));
             throw new Error(json.error.message || JSON.stringify(json.error));
         }
 
-        created += (json.records || []).length;
+        const recordsCreated = (json.records || []).length;
+        if (recordsCreated === 0) {
+            console.warn(
+                `⚠️ Record ${i + 1}/${records.length} was not created by Airtable (no error, but no record returned)`,
+            );
+            console.warn('Attempted record:', JSON.stringify(batch, null, 2));
+            skipped++;
+        }
+
+        created += recordsCreated;
+    }
+
+    if (skipped > 0) {
+        console.warn(`⚠️ Total records skipped or not created: ${skipped}/${records.length}`);
     }
 
     return created;
