@@ -1,10 +1,4 @@
-import type {
-    ActorInput,
-    AirtableClient,
-    AirtableTable,
-    DataMapping,
-    OperationType,
-} from './types.js';
+import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
 import { fetchBaseSchema, findTable, createTableIfSupported } from './api.js';
 
 export const validateInput = (input: ActorInput): void => {
@@ -29,7 +23,7 @@ export const ensureTable = async (
     tableNameOrId: string,
     operation: OperationType,
     dataMappings: DataMapping[],
-    clearOnCreate?: boolean
+    clearOnCreate?: boolean,
 ): Promise<AirtableTable> => {
     const tables = await fetchBaseSchema(airtable, baseId);
 
@@ -51,7 +45,7 @@ export const ensureTable = async (
             throw new Error(
                 `Table "${tableNameOrId}" already exists in base "${baseId}". ` +
                     `Operation is set to "create" and "clearOnCreate" is false. ` +
-                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation.`
+                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation.`,
             );
         }
         // If clearOnCreate is true or undefined (default behavior), allow it to proceed
@@ -61,7 +55,7 @@ export const ensureTable = async (
     if (!table) {
         throw new Error(
             `Table "${tableNameOrId}" was not found in base "${baseId}". ` +
-                `If you intend to create it, use operation "create".`
+                `If you intend to create it, use operation "create".`,
         );
     }
 
@@ -72,7 +66,7 @@ export const ensureFieldsExist = async (
     _airtable: AirtableClient,
     _baseId: string,
     table: AirtableTable,
-    dataMappings: DataMapping[]
+    dataMappings: DataMapping[],
 ): Promise<void> => {
     const existingFieldsByName = new Map<string, boolean>();
     for (const f of table.fields) {
@@ -89,7 +83,7 @@ export const ensureFieldsExist = async (
             if (targetType === 'existing') {
                 throw new Error(
                     `Mapping expects existing Airtable field "${target}" in table "${table.name}", ` +
-                        `but it does not exist. Please create it in Airtable or mark the mapping as "new".`
+                        `but it does not exist. Please create it in Airtable or mark the mapping as "new".`,
                 );
             }
 
@@ -104,6 +98,6 @@ export const ensureFieldsExist = async (
             missingFields.map((f) => `"${f.name}" (${f.type})`).join(', ') +
             `. Airtable REST API does not generally allow creating fields. ` +
             `Please create these fields manually OR enable the schema mutation API and ` +
-            `implement field creation logic in ensureFieldsExist().`
+            `implement field creation logic in ensureFieldsExist().`,
     );
 };

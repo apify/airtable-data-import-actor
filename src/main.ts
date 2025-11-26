@@ -52,15 +52,13 @@ try {
         const uniqueMapping = cleanedMappings.find((m) => m.source === uniqueId);
         if (uniqueMapping && uniqueMapping.target && uniqueMapping.targetType !== 'new') {
             uniqueTargetField = uniqueMapping.target;
-            console.log(
-                `Unique ID enabled. Reading existing values from Airtable field "${uniqueTargetField}"...`
-            );
+            console.log(`Unique ID enabled. Reading existing values from Airtable field "${uniqueTargetField}"...`);
             uniqueIdSet = await fetchExistingUniqueIds(airtable, baseId, tableName, uniqueTargetField);
             console.log(`Found ${uniqueIdSet.size} existing unique IDs in Airtable.`);
         } else {
             console.log(
                 'uniqueId provided but mapping not found or marked as "new". ' +
-                    'Duplicate check will only consider new records within this run.'
+                    'Duplicate check will only consider new records within this run.',
             );
         }
     }
@@ -82,12 +80,7 @@ try {
 
         if (!items || !items.length) continue;
 
-        const { records, duplicateCount } = mapItemsToAirtableRecords(
-            items,
-            cleanedMappings,
-            uniqueId,
-            uniqueIdSet
-        );
+        const { records, duplicateCount } = mapItemsToAirtableRecords(items, cleanedMappings, uniqueId, uniqueIdSet);
 
         skippedDuplicates += duplicateCount;
 
@@ -102,9 +95,7 @@ try {
         console.log(`Batch written: ${created} records created.`);
     }
 
-    console.log(
-        `Import finished. Imported ${importedCount} records. ` + `Skipped ${skippedDuplicates} duplicates.`
-    );
+    console.log(`Import finished. Imported ${importedCount} records. ` + `Skipped ${skippedDuplicates} duplicates.`);
 
     await Actor.pushData({
         importedCount,

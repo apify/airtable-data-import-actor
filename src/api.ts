@@ -12,10 +12,7 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
     const accountId = input['oAuthAccount.4NisUztj4uOTblL9i'];
 
     const headers = { Authorization: `Bearer ${process.env.APIFY_TOKEN}` };
-    const res = await fetch(
-        `${process.env.APIFY_API_BASE_URL}v2/actor-oauth-accounts/${accountId}`,
-        { headers }
-    );
+    const res = await fetch(`${process.env.APIFY_API_BASE_URL}v2/actor-oauth-accounts/${accountId}`, { headers });
     const account = (await res.json()) as AirtableOAuthAccountResponse;
 
     const { access_token } = account.data.data;
@@ -33,37 +30,25 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
     };
 };
 
-export const fetchBaseSchema = async (
-    airtable: AirtableClient,
-    baseId: string
-): Promise<AirtableTable[]> => {
+export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
     const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
     const res = await airtable.fetch(url);
     const json = (await res.json()) as AirtableSchemaResponse;
     return json.tables || [];
 };
 
-export const findTable = (
-    tables: AirtableTable[],
-    identifier: string | undefined
-): AirtableTable | null => {
+export const findTable = (tables: AirtableTable[], identifier: string | undefined): AirtableTable | null => {
     if (!identifier) return null;
 
     const idLower = identifier.trim().toLowerCase();
-    return (
-        tables.find(
-            (t) =>
-                t.id.toLowerCase() === idLower ||
-                t.name.trim().toLowerCase() === idLower
-        ) || null
-    );
+    return tables.find((t) => t.id.toLowerCase() === idLower || t.name.trim().toLowerCase() === idLower) || null;
 };
 
 export const createTableIfSupported = async (
     airtable: AirtableClient,
     baseId: string,
     tableName: string,
-    fields: Array<{ name: string; type: string }>
+    fields: Array<{ name: string; type: string }>,
 ): Promise<void> => {
     const path = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
 
@@ -142,7 +127,7 @@ export const fetchExistingUniqueIds = async (
     airtable: AirtableClient,
     baseId: string,
     tableName: string,
-    uniqueTargetField: string
+    uniqueTargetField: string,
 ): Promise<Set<string>> => {
     if (!uniqueTargetField) return new Set();
 
@@ -176,7 +161,7 @@ export const fetchExistingUniqueIds = async (
 export const deleteAllRecords = async (
     airtable: AirtableClient,
     baseId: string,
-    tableName: string
+    tableName: string,
 ): Promise<number> => {
     const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
     let offset: string | undefined;
@@ -229,7 +214,7 @@ export const deleteAllRecords = async (
             if (deletedThisBatch !== batch.length) {
                 console.warn(
                     `⚠️ WARNING: Airtable deleted fewer records than expected. ` +
-                        `Expected ${batch.length}, deleted ${deletedThisBatch}.`
+                        `Expected ${batch.length}, deleted ${deletedThisBatch}.`,
                 );
             }
 
@@ -248,7 +233,7 @@ export const batchWriteRecords = async (
     baseId: string,
     tableName: string,
     records: AirtableRecord[],
-    schemaMap: Record<string, string>
+    schemaMap: Record<string, string>,
 ): Promise<number> => {
     const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
     let created = 0;
@@ -280,10 +265,7 @@ export const batchWriteRecords = async (
     return created;
 };
 
-const normalizeRecordFields = (
-    fields: Record<string, any>,
-    schemaMap: Record<string, string>
-): Record<string, any> => {
+const normalizeRecordFields = (fields: Record<string, any>, schemaMap: Record<string, string>): Record<string, any> => {
     const out: Record<string, any> = {};
 
     for (const [fieldName, value] of Object.entries(fields)) {

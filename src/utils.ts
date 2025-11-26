@@ -28,7 +28,7 @@ export const mapItemsToAirtableRecords = (
     items: any[],
     dataMappings: DataMapping[],
     uniqueId: string | undefined,
-    uniqueIdSet: Set<string> | null
+    uniqueIdSet: Set<string> | null,
 ): MappingResult => {
     const records: AirtableRecord[] = [];
     let duplicateCount = 0;
@@ -37,7 +37,9 @@ export const mapItemsToAirtableRecords = (
         let rowId: string | null = null;
         if (uniqueId) {
             const idVal = getValueAtPath(item, uniqueId);
-            rowId = String(idVal ?? '').trim().toLowerCase();
+            rowId = String(idVal ?? '')
+                .trim()
+                .toLowerCase();
         }
 
         if (rowId && uniqueIdSet && uniqueIdSet.has(rowId)) {
