@@ -91,11 +91,11 @@ export const ensureTable = async (
 
 /**
  * Validates that all required Airtable fields exist in the table
- * Throws an error if fields marked as "existing" are not found or if new fields cannot be created
+ * Creates missing fields if they are marked as "new", throws error if "existing" fields are not found
  */
 export const ensureFieldsExist = async (
-    _airtable: AirtableClient,
-    _baseId: string,
+    airtable: AirtableClient,
+    baseId: string,
     table: AirtableTable,
     dataMappings: DataMapping[],
 ): Promise<void> => {
@@ -127,11 +127,27 @@ export const ensureFieldsExist = async (
         return;
     }
 
-    const fieldsList = missingFields.map((field) => `"${field.name}" (type: ${field.type})`).join(', ');
-    throw new Error(
-        `Cannot create ${missingFields.length} missing field(s) in table "${table.name}": ${fieldsList}. ` +
-            `The Airtable REST API does not generally allow creating fields via API. ` +
-            `Solution: Please create these fields manually in Airtable, OR enable the Enterprise schema mutation API ` +
-            `and implement field creation logic in this function.`,
-    );
+    // Create missing fields using Airtable Meta API
+    console.log(`Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
+
+    for (const field of missingFields) {
+        const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables/${table.id}/fields`;
+        const res = await airtable.fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: field.name,
+                type: field.type,
+            }),
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(
+                `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}": ${errorText}`,
+            );
+        }
+
+        console.log(`✓ Created field "${field.name}" (${field.type})`);
+    }
 };
