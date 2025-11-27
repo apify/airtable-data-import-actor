@@ -66,7 +66,7 @@ export const findTable = (tables: AirtableTable[], identifier: string | undefine
  * Creates a new table in Airtable with the specified fields
  * If table name conflicts, retries with a timestamped name
  */
-export const createTableIfSupported = async (
+export const createTable = async (
     airtable: AirtableClient,
     baseId: string,
     tableName: string,
@@ -99,43 +99,19 @@ export const createTableIfSupported = async (
         fields: mappedFields,
     };
 
-    try {
-        const res = await airtable.fetch(path, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+    const res = await airtable.fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
 
-        const json = await res.json();
+    const json = await res.json();
 
-        if (!res.ok || json.error) {
-            throw new Error(json.error?.message || 'Failed to create table');
-        }
-
-        console.log(`✓ Created table "${tableName}"`);
-    } catch (err) {
-        // If there's a conflict (table name already exists), try with a timestamped name
-        if (err instanceof Error && err.message.includes('name')) {
-            const uniqueTableName = `${tableName} ${new Date().toISOString()}`;
-            const patchedPayload = { ...payload, name: uniqueTableName };
-
-            const retryRes = await airtable.fetch(path, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(patchedPayload),
-            });
-
-            const retryJson = await retryRes.json();
-
-            if (!retryRes.ok || retryJson.error) {
-                throw new Error(retryJson.error?.message || 'Failed to create table with unique name');
-            }
-
-            console.log(`✓ Created table "${uniqueTableName}"`);
-        } else {
-            throw err;
-        }
+    if (!res.ok || json.error) {
+        throw new Error(json.error?.message || 'Failed to create table');
     }
+
+    console.log(`✓ Created table "${tableName}"`);
 };
 
 /**

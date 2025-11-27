@@ -1,5 +1,5 @@
 import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
-import { fetchBaseSchema, findTable, createTableIfSupported } from './api.js';
+import { fetchBaseSchema, findTable, createTable } from './api.js';
 
 /**
  * Validates the actor input configuration
@@ -55,7 +55,7 @@ export const ensureTable = async (
             type: mapping.fieldType,
         }));
 
-        await createTableIfSupported(airtable, baseId, tableNameOrId, fields);
+        await createTable(airtable, baseId, tableNameOrId, fields);
 
         const newTables = await fetchBaseSchema(airtable, baseId);
         table = findTable(newTables, tableNameOrId);
