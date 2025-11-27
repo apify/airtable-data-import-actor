@@ -187,7 +187,7 @@ export const fetchExistingUniqueIds = async (
 
 /**
  * Deletes all records from an Airtable table in batches
- * Respects Airtable's batch size limits
+ * Respects Airtable's batch size limits and implements retry logic with exponential backoff
  */
 export const deleteAllRecords = async (
     airtable: AirtableClient,
@@ -217,18 +217,58 @@ export const deleteAllRecords = async (
                 deleteUrl.searchParams.append('records[]', id);
             });
 
-            const deleteRes = await airtable.fetch(deleteUrl.toString(), {
-                method: 'DELETE',
-            });
+            // Retry logic with exponential backoff
+            let attemptCount = 0;
+            let deleted = false;
+            const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1;
 
-            const deleteJson = await deleteRes.json();
+            while (attemptCount < maxAttempts && !deleted) {
+                attemptCount++;
 
-            if (deleteJson.error) {
-                throw new Error(deleteJson.error.message || JSON.stringify(deleteJson.error));
+                try {
+                    const deleteRes = await airtable.fetch(deleteUrl.toString(), {
+                        method: 'DELETE',
+                    });
+
+                    if (!deleteRes.ok) {
+                        if (deleteRes.status === 429) {
+                            // Rate limited
+                            if (attemptCount < maxAttempts) {
+                                const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
+                                await sleep(retryDelay);
+                                continue;
+                            } else {
+                                throw new Error('Rate limit exceeded after all retry attempts');
+                            }
+                        }
+
+                        const errorText = await deleteRes.text();
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
+                        } catch {
+                            throw new Error(`HTTP ${deleteRes.status}: ${errorText}`);
+                        }
+                    }
+
+                    const deleteJson = await deleteRes.json();
+
+                    if (deleteJson.error) {
+                        throw new Error(deleteJson.error.message || JSON.stringify(deleteJson.error));
+                    }
+
+                    const deletedThisBatch = (deleteJson.records || []).length;
+                    totalDeleted += deletedThisBatch;
+                    deleted = true;
+                } catch (error) {
+                    if (attemptCount < maxAttempts) {
+                        const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
+                        await sleep(retryDelay);
+                    } else {
+                        throw error;
+                    }
+                }
             }
-
-            const deletedThisBatch = (deleteJson.records || []).length;
-            totalDeleted += deletedThisBatch;
         }
 
         offset = json.offset;
