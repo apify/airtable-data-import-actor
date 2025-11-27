@@ -1,24 +1,133 @@
-## Empty TypeScript template
+# Airtable Data Import Actor
 
-<!-- This is an Apify template readme -->
+Import data from Apify datasets directly into Airtable with flexible field mapping, duplicate detection, and automatic table/field creation.
 
-Start a new [web scraping](https://apify.com/web-scraping) project quickly and easily in TypeScript (Node.js) with our empty project template. It provides a basic structure for the Actor with [Apify SDK](https://docs.apify.com/sdk/js/) and allows you to easily add your own functionality.
+## What does this Actor do?
 
-## Included features
+This Actor imports data from any Apify dataset into your Airtable base. Perfect for storing web scraping results, building automated data pipelines, and creating structured databases from scraped data.
 
-- **[Apify SDK](https://docs.apify.com/sdk/js/)** - a toolkit for building [Actors](https://apify.com/actors)
-- **[Crawlee](https://crawlee.dev/)** - web scraping and browser automation library
+## Key Features
 
-## How it works
+- **Flexible Import Modes**: Append, override, or create tables automatically
+- **Smart Field Mapping**: Map dataset fields to Airtable columns with dot notation support (e.g., `product.details.price`)
+- **Duplicate Detection**: Skip records that already exist based on a unique identifier
+- **Automatic Field Creation**: Create new Airtable fields on the fly
+- **Batch Processing**: Efficiently handles large datasets with automatic batching
 
-Insert your own code between `await Actor.init()` and `await Actor.exit()`. If you would like to use the [Crawlee](https://crawlee.dev/) library simply uncomment its import `import { CheerioCrawler } from 'crawlee';`.
+## Setup
 
-## Resources
+### 1. Connect Airtable Account
 
-- [TypeScript vs. JavaScript: which to use for web scraping?](https://blog.apify.com/typescript-vs-javascript-crawler/)
-- [Node.js tutorials](https://docs.apify.com/academy/node-js) in Academy
-- [Video guide on getting scraped data using Apify API](https://www.youtube.com/watch?v=ViYYDHSBAKM)
-- [Integration with Airbyte](https://apify.com/integrations), Make, Zapier, Google Drive, and other apps
-- A short guide on how to build web scrapers using code templates:
+Authenticate with Airtable using OAuth in the Apify integration settings.
 
-[web scraper template](https://www.youtube.com/watch?v=u-i-Korzf8w)
+### 2. Configure Import Settings
+
+#### Required Fields
+
+- **Airtable Base ID**: Find this in your Airtable URL (e.g., `appXXXXXXXXXXXXXX`)
+- **Airtable Table Name**: Name of the target table (e.g., `Products`, `Contacts`)
+- **Apify Dataset ID**: Source dataset ID
+
+  **⚠️ IMPORTANT FOR INTEGRATIONS:** When setting up this Actor as an integration to run after another Actor, use the following variable for the Dataset ID field:
+  ```
+  {{resource.defaultDatasetId}}
+  ```
+  This automatically uses the output dataset from the previous Actor in your workflow.
+
+- **Import Operation**:
+  - `append` - Add new records (keeps existing data)
+  - `override` - Delete all records first, then import
+  - `create` - Create table if it doesn't exist
+
+- **Field Mappings**: Map source fields to Airtable columns
+  ```json
+  [
+    {
+      "source": "title",
+      "target": "Product Name",
+      "targetType": "existing",
+      "fieldType": "singleLineText"
+    },
+    {
+      "source": "price",
+      "target": "Price",
+      "targetType": "new",
+      "fieldType": "number"
+    }
+  ]
+  ```
+
+#### Optional Fields
+
+- **Unique ID Source Field**: Field name for duplicate detection (e.g., `url`, `productId`)
+- **Clear on Create**: Clear existing data when table already exists in `create` mode
+
+### Field Mapping Guide
+
+Each mapping requires:
+- **source**: Dataset field name (supports dot notation: `contact.email`)
+- **target**: Airtable column name
+- **targetType**: `existing` (field exists) or `new` (create if missing)
+- **fieldType**: `singleLineText`, `multilineText`, `number`, or `checkbox`
+
+## Example: E-commerce Product Import
+
+```json
+{
+  "operation": "append",
+  "base": "appABC123456789",
+  "table": "Products",
+  "datasetId": "{{resource.defaultDatasetId}}",
+  "uniqueId": "url",
+  "dataMappings": [
+    {
+      "source": "title",
+      "target": "Product Name",
+      "targetType": "existing",
+      "fieldType": "singleLineText"
+    },
+    {
+      "source": "price",
+      "target": "Price",
+      "targetType": "existing",
+      "fieldType": "number"
+    },
+    {
+      "source": "url",
+      "target": "URL",
+      "targetType": "existing",
+      "fieldType": "singleLineText"
+    }
+  ]
+}
+```
+
+## Common Use Cases
+
+- **E-commerce Monitoring**: Store competitor prices and product data
+- **Lead Generation**: Import contact information with duplicate prevention
+- **Real Estate**: Maintain property listings from multiple sources
+- **Content Aggregation**: Collect articles, posts, or reviews
+
+## Tips
+
+- Always use a unique identifier field (`uniqueId`) when appending to prevent duplicates
+- Use `singleLineText` for most text fields, `multilineText` for descriptions
+- The Actor processes datasets in batches of 1000 items automatically
+- Check Actor logs for detailed progress and error information
+
+## Output
+
+Returns a summary with imported count, duplicates skipped, and operation details.
+
+## Integration Workflow Example
+
+1. Run a web scraper Actor to collect data
+2. Set this Actor as an integration with `datasetId: {{resource.defaultDatasetId}}`
+3. Data automatically flows from scraper → Airtable
+
+## Technical Details
+
+- **Runtime**: Node.js 18+
+- **Batch Size**: 1000 items
+- **API**: Uses official Airtable Web API with rate limiting
