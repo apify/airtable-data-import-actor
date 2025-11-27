@@ -7,9 +7,21 @@ import type {
     AirtableRecord,
     WhoAmIResponse,
 } from './types.js';
+import {
+    OAUTH_ACCOUNT_FIELD,
+    AIRTABLE_PAGE_SIZE,
+    AIRTABLE_DELETE_BATCH_SIZE,
+    AIRTABLE_WRITE_BATCH_SIZE,
+    AIRTABLE_BASE_DELAY_MS,
+    AIRTABLE_RETRY_DELAYS_MS,
+} from './constants.js';
+import { normalizeCellValue } from './utils.js';
 
+/**
+ * Creates an Airtable client with OAuth authentication from Apify Actor input
+ */
 export const getAirtableClient = async (input: ActorInput): Promise<AirtableClient> => {
-    const accountId = input['oAuthAccount.4NisUztj4uOTblL9i'];
+    const accountId = input[OAUTH_ACCOUNT_FIELD];
 
     const headers = { Authorization: `Bearer ${process.env.APIFY_TOKEN}` };
     const res = await fetch(`${process.env.APIFY_API_BASE_URL}v2/actor-oauth-accounts/${accountId}`, { headers });
@@ -30,6 +42,9 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
     };
 };
 
+/**
+ * Fetches the complete schema (tables and fields) for an Airtable base
+ */
 export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
     const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
     const res = await airtable.fetch(url);
@@ -37,6 +52,9 @@ export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string):
     return json.tables || [];
 };
 
+/**
+ * Finds a table in the schema by ID or name (case-insensitive)
+ */
 export const findTable = (tables: AirtableTable[], identifier: string | undefined): AirtableTable | null => {
     if (!identifier) return null;
 
@@ -44,6 +62,10 @@ export const findTable = (tables: AirtableTable[], identifier: string | undefine
     return tables.find((t) => t.id.toLowerCase() === idLower || t.name.trim().toLowerCase() === idLower) || null;
 };
 
+/**
+ * Creates a new table in Airtable with the specified fields
+ * If table name conflicts, retries with a timestamped name
+ */
 export const createTableIfSupported = async (
     airtable: AirtableClient,
     baseId: string,
@@ -91,7 +113,7 @@ export const createTableIfSupported = async (
             throw new Error(json.error?.message || 'Failed to create table');
         }
 
-        console.log(`✅ Created table "${tableName}" with ${fields.length} fields`);
+        console.log(`Created table "${tableName}" with ${fields.length} fields in base "${baseId}"`);
     } catch (err) {
         // If there's a conflict (table name already exists), try with a timestamped name
         if (err instanceof Error && err.message.includes('name')) {
@@ -111,18 +133,25 @@ export const createTableIfSupported = async (
                 throw new Error(retryJson.error?.message || 'Failed to create table with unique name');
             }
 
-            console.log(`✅ Created table "${uniqueTableName}" with ${fields.length} fields`);
+            console.log(`Created table "${uniqueTableName}" with ${fields.length} fields in base "${baseId}"`);
         } else {
             throw err;
         }
     }
 };
 
+/**
+ * Fetches the authenticated user's information from Airtable
+ */
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
     const res = await airtable.fetch('https://api.airtable.com/v0/meta/whoami');
     return (await res.json()) as WhoAmIResponse;
 };
 
+/**
+ * Fetches all existing values for a unique identifier field from an Airtable table
+ * Used for duplicate detection during imports
+ */
 export const fetchExistingUniqueIds = async (
     airtable: AirtableClient,
     baseId: string,
@@ -137,7 +166,7 @@ export const fetchExistingUniqueIds = async (
 
     do {
         const url = new URL(baseUrl);
-        url.searchParams.set('pageSize', '100');
+        url.searchParams.set('pageSize', String(AIRTABLE_PAGE_SIZE));
         if (offset) url.searchParams.set('offset', offset);
         url.searchParams.set('fields[]', uniqueTargetField);
 
@@ -158,6 +187,10 @@ export const fetchExistingUniqueIds = async (
     return values;
 };
 
+/**
+ * Deletes all records from an Airtable table in batches
+ * Respects Airtable's batch size limits
+ */
 export const deleteAllRecords = async (
     airtable: AirtableClient,
     baseId: string,
@@ -167,11 +200,11 @@ export const deleteAllRecords = async (
     let offset: string | undefined;
     let totalDeleted = 0;
 
-    console.log(`🗑️ Starting full delete for "${tableName}"...`);
+    console.log(`Starting deletion of all records in table "${tableName}" (base: ${baseId})`);
 
     do {
         const url = new URL(baseUrl);
-        url.searchParams.set('pageSize', '100');
+        url.searchParams.set('pageSize', String(AIRTABLE_PAGE_SIZE));
         if (offset) url.searchParams.set('offset', offset);
 
         const res = await airtable.fetch(url.toString(), { method: 'GET' });
@@ -179,16 +212,16 @@ export const deleteAllRecords = async (
 
         const ids = (json.records || []).map((r: any) => r.id);
         if (!ids.length) {
-            console.log('No more records found, delete complete.');
+            console.log('No more records found in table, deletion complete');
             break;
         }
 
-        console.log(`Found ${ids.length} records in this page to delete...`);
+        console.log(`Found ${ids.length} records in current page, deleting in batches...`);
 
-        for (let i = 0; i < ids.length; i += 10) {
-            const batch = ids.slice(i, i + 10);
+        for (let i = 0; i < ids.length; i += AIRTABLE_DELETE_BATCH_SIZE) {
+            const batch = ids.slice(i, i + AIRTABLE_DELETE_BATCH_SIZE);
 
-            console.log(`➡️ Deleting batch of ${batch.length} records…`, batch);
+            console.log(`Deleting batch of ${batch.length} records (IDs: ${batch.join(', ')})`);
 
             // Build URL with query parameters for deletion
             const deleteUrl = new URL(baseUrl);
@@ -203,18 +236,17 @@ export const deleteAllRecords = async (
             const deleteJson = await deleteRes.json();
 
             if (deleteJson.error) {
-                console.error('❌ Airtable delete error:', JSON.stringify(deleteJson, null, 2));
+                console.error('Airtable delete error:', JSON.stringify(deleteJson, null, 2));
                 throw new Error(deleteJson.error.message || JSON.stringify(deleteJson.error));
             }
 
             const deletedThisBatch = (deleteJson.records || []).length;
 
-            console.log(`✅ Deleted ${deletedThisBatch}/${batch.length} records in this batch.`);
+            console.log(`Successfully deleted ${deletedThisBatch}/${batch.length} records in batch`);
 
             if (deletedThisBatch !== batch.length) {
                 console.warn(
-                    `⚠️ WARNING: Airtable deleted fewer records than expected. ` +
-                        `Expected ${batch.length}, deleted ${deletedThisBatch}.`,
+                    `WARNING: Airtable deleted fewer records than expected (expected: ${batch.length}, deleted: ${deletedThisBatch})`,
                 );
             }
 
@@ -224,12 +256,16 @@ export const deleteAllRecords = async (
         offset = json.offset;
     } while (offset);
 
-    console.log(`🧹 Total deleted from "${tableName}": ${totalDeleted} records.`);
+    console.log(`Deletion complete. Total records deleted from table "${tableName}": ${totalDeleted}`);
     return totalDeleted;
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Writes records to Airtable one at a time with rate limiting and retry logic
+ * Handles rate limits (429) and implements exponential backoff for failed requests
+ */
 export const batchWriteRecords = async (
     airtable: AirtableClient,
     baseId: string,
@@ -238,14 +274,12 @@ export const batchWriteRecords = async (
     schemaMap: Record<string, string>,
 ): Promise<number> => {
     const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
-    const BASE_DELAY_MS = 200; // Base delay between requests to respect rate limits (5 req/sec = 200ms between requests)
-    const RETRY_DELAYS_MS = [250, 500, 1000]; // Exponential backoff delays for retries
 
     let created = 0;
     let skipped = 0;
 
-    for (let i = 0; i < records.length; i += 1) {
-        const rawBatch = records.slice(i, i + 1);
+    for (let i = 0; i < records.length; i += AIRTABLE_WRITE_BATCH_SIZE) {
+        const rawBatch = records.slice(i, i + AIRTABLE_WRITE_BATCH_SIZE);
         const batch = rawBatch.map((r) => ({
             fields: normalizeRecordFields(r.fields, schemaMap),
         }));
@@ -258,7 +292,7 @@ export const batchWriteRecords = async (
 
         if (!hasValidFields) {
             console.warn(
-                `⚠️ Skipping record ${i + 1}/${records.length}: All fields are null/undefined after normalization`,
+                `Skipping record ${i + 1}/${records.length}: All fields are null/undefined after normalization`,
             );
             skipped++;
             continue;
@@ -267,7 +301,7 @@ export const batchWriteRecords = async (
         // Try to create the record with retries
         let attemptCount = 0;
         let recordCreated = false;
-        const maxAttempts = RETRY_DELAYS_MS.length + 1; // Initial attempt + retries
+        const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1; // Initial attempt + retries
 
         while (attemptCount < maxAttempts && !recordCreated) {
             attemptCount++;
@@ -285,9 +319,9 @@ export const batchWriteRecords = async (
                     // Handle rate limiting (HTTP 429)
                     if (res.status === 429) {
                         if (attemptCount < maxAttempts) {
-                            const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                            const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
                             console.warn(
-                                `⚠️ Rate limited on record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`,
+                                `Rate limited on record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})`,
                             );
                             await sleep(retryDelay);
                             continue;
@@ -298,9 +332,10 @@ export const batchWriteRecords = async (
 
                     // Handle other HTTP errors
                     const errorText = await res.text();
-                    console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
-                    console.error(`HTTP Status: ${res.status} ${res.statusText}`);
-                    console.error('Response:', errorText);
+                    console.error(
+                        `Failed to create record ${i + 1}/${records.length} - HTTP ${res.status} ${res.statusText}`,
+                    );
+                    console.error('Error response:', errorText);
 
                     try {
                         const errorJson = JSON.parse(errorText);
@@ -313,8 +348,9 @@ export const batchWriteRecords = async (
                 const json = await res.json();
 
                 if (json.error) {
-                    console.error(`❌ Failed to create record ${i + 1}/${records.length}:`);
-                    console.error('Airtable error:', JSON.stringify(json, null, 2));
+                    console.error(
+                        `Failed to create record ${i + 1}/${records.length}: ${json.error.message || JSON.stringify(json.error)}`,
+                    );
                     throw new Error(json.error.message || JSON.stringify(json.error));
                 }
 
@@ -323,17 +359,16 @@ export const batchWriteRecords = async (
                 if (recordsCreated === 0) {
                     // No records created, might be rate limiting or silent rejection
                     if (attemptCount < maxAttempts) {
-                        const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                        const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
                         console.warn(
-                            `⚠️ Record ${i + 1}/${records.length} not created (attempt ${attemptCount}/${maxAttempts}), retrying in ${retryDelay}ms...`,
+                            `Record ${i + 1}/${records.length} not created (attempt ${attemptCount}/${maxAttempts}), retrying in ${retryDelay}ms`,
                         );
                         await sleep(retryDelay);
                         continue;
                     } else {
                         console.warn(
-                            `⚠️ Record ${i + 1}/${records.length} was not created after ${maxAttempts} attempts`,
+                            `Record ${i + 1}/${records.length} was not created after ${maxAttempts} attempts. Attempted record: ${JSON.stringify(batch, null, 2)}`,
                         );
-                        console.warn('Attempted record:', JSON.stringify(batch, null, 2));
                         skipped++;
                         recordCreated = true; // Exit retry loop
                     }
@@ -344,11 +379,10 @@ export const batchWriteRecords = async (
             } catch (error) {
                 // On error, retry if attempts remain
                 if (attemptCount < maxAttempts) {
-                    const retryDelay = RETRY_DELAYS_MS[attemptCount - 1];
+                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
                     console.warn(
-                        `⚠️ Error on record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`,
+                        `Error creating record ${i + 1}/${records.length}, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts}): ${error instanceof Error ? error.message : String(error)}`,
                     );
-                    console.warn('Error:', error instanceof Error ? error.message : String(error));
                     await sleep(retryDelay);
                 } else {
                     // Max attempts reached, rethrow error
@@ -359,17 +393,20 @@ export const batchWriteRecords = async (
 
         // Rate limiting: wait before next request (except for the last record)
         if (i < records.length - 1) {
-            await sleep(BASE_DELAY_MS);
+            await sleep(AIRTABLE_BASE_DELAY_MS);
         }
     }
 
     if (skipped > 0) {
-        console.warn(`⚠️ Total records skipped or not created: ${skipped}/${records.length}`);
+        console.warn(`Total records skipped or not created: ${skipped}/${records.length}`);
     }
 
     return created;
 };
 
+/**
+ * Normalizes record fields to match the Airtable schema types
+ */
 const normalizeRecordFields = (fields: Record<string, any>, schemaMap: Record<string, string>): Record<string, any> => {
     const out: Record<string, any> = {};
 
@@ -385,44 +422,4 @@ const normalizeRecordFields = (fields: Record<string, any>, schemaMap: Record<st
     }
 
     return out;
-};
-
-const normalizeCellValue = (value: any, valueType: string, targetFieldType: string): any => {
-    const MAX_STRING_LENGTH = 10000;
-
-    if (value === undefined || value === null) return null;
-
-    if (valueType === targetFieldType) return value;
-
-    switch (targetFieldType) {
-        case 'number': {
-            if (typeof value === 'string') {
-                const parsed = Number(value.trim());
-                return Number.isNaN(parsed) ? null : parsed;
-            }
-            if (typeof value === 'number') return value;
-            if (typeof value === 'boolean') return value ? 1 : 0;
-            return null;
-        }
-        case 'checkbox': {
-            if (typeof value === 'boolean') return value;
-            if (typeof value === 'string') {
-                const lower = value.toLowerCase().trim();
-                if (['true', 'yes', '1', 'on'].includes(lower)) return true;
-                if (['false', 'no', '0', 'off', ''].includes(lower)) return false;
-            }
-            return Boolean(value);
-        }
-        case 'singleLineText':
-        case 'multilineText': {
-            if (typeof value === 'object') {
-                const s = JSON.stringify(value, null, 2);
-                return s.length > MAX_STRING_LENGTH ? s.slice(0, MAX_STRING_LENGTH) : s;
-            }
-            const s = String(value);
-            return s.length > MAX_STRING_LENGTH ? s.slice(0, MAX_STRING_LENGTH) : s;
-        }
-        default:
-            return null;
-    }
 };

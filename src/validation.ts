@@ -1,22 +1,41 @@
 import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
 import { fetchBaseSchema, findTable, createTableIfSupported } from './api.js';
 
+/**
+ * Validates the actor input configuration
+ * Throws descriptive errors if any required fields are missing or invalid
+ */
 export const validateInput = (input: ActorInput): void => {
     const { operation, base, table, datasetId, dataMappings } = input;
 
-    const cleanedMappings = dataMappings.filter((m) => m.target && m.target.trim() !== '');
+    const cleanedMappings = dataMappings.filter((mapping) => mapping.target && mapping.target.trim() !== '');
 
     if (!operation || !['append', 'override', 'create'].includes(operation)) {
-        throw new Error('Input "operation" must be one of: append | override | create.');
+        throw new Error(
+            `Invalid operation "${operation || '(empty)'}". Must be one of: "append", "override", or "create".`,
+        );
     }
-    if (!base) throw new Error('Input "base" (Airtable base ID) is required.');
-    if (!table) throw new Error('Input "table" (Airtable table name) is required.');
-    if (!datasetId) throw new Error('Input "datasetId" is required.');
+    if (!base) {
+        throw new Error('Missing required input "base". Please provide an Airtable base ID.');
+    }
+    if (!table) {
+        throw new Error('Missing required input "table". Please provide an Airtable table name or ID.');
+    }
+    if (!datasetId) {
+        throw new Error('Missing required input "datasetId". Please provide an Apify dataset ID to import from.');
+    }
     if (!Array.isArray(cleanedMappings) || cleanedMappings.length === 0) {
-        throw new Error('Input "dataMappings" must be a non-empty array.');
+        throw new Error(
+            'Input "dataMappings" must be a non-empty array with at least one valid mapping. ' +
+                'Each mapping must have a non-empty "target" field.',
+        );
     }
 };
 
+/**
+ * Ensures a table exists in the Airtable base, creating it if necessary based on operation type
+ * Handles the "create" operation logic including table creation and clearOnCreate behavior
+ */
 export const ensureTable = async (
     airtable: AirtableClient,
     baseId: string,
@@ -30,24 +49,33 @@ export const ensureTable = async (
     let table = findTable(tables, tableNameOrId);
 
     if (!table && operation === 'create') {
-        const fields = dataMappings.map((m) => ({
-            name: m.target,
-            type: m.fieldType,
+        console.log(`Table "${tableNameOrId}" not found. Creating new table with ${dataMappings.length} fields...`);
+        const fields = dataMappings.map((mapping) => ({
+            name: mapping.target,
+            type: mapping.fieldType,
         }));
 
         await createTableIfSupported(airtable, baseId, tableNameOrId, fields);
 
         const newTables = await fetchBaseSchema(airtable, baseId);
         table = findTable(newTables, tableNameOrId);
+
+        if (!table) {
+            throw new Error(
+                `Failed to create or find table "${tableNameOrId}" in base "${baseId}" after creation attempt. ` +
+                    `Please verify your Airtable permissions and base configuration.`,
+            );
+        }
     } else if (table && operation === 'create') {
         // Table already exists with 'create' operation
         if (clearOnCreate === false) {
             throw new Error(
                 `Table "${tableNameOrId}" already exists in base "${baseId}". ` +
                     `Operation is set to "create" and "clearOnCreate" is false. ` +
-                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation.`,
+                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation instead.`,
             );
         }
+        console.log(`Table "${tableNameOrId}" already exists. Will clear data before import (clearOnCreate=true)`);
         // If clearOnCreate is true or undefined (default behavior), allow it to proceed
         // The data clearing will be handled in main.ts
     }
@@ -55,13 +83,17 @@ export const ensureTable = async (
     if (!table) {
         throw new Error(
             `Table "${tableNameOrId}" was not found in base "${baseId}". ` +
-                `If you intend to create it, use operation "create".`,
+                `Available operations: Use "create" to create a new table, or verify the table name/ID is correct.`,
         );
     }
 
     return table;
 };
 
+/**
+ * Validates that all required Airtable fields exist in the table
+ * Throws an error if fields marked as "existing" are not found or if new fields cannot be created
+ */
 export const ensureFieldsExist = async (
     _airtable: AirtableClient,
     _baseId: string,
@@ -69,8 +101,8 @@ export const ensureFieldsExist = async (
     dataMappings: DataMapping[],
 ): Promise<void> => {
     const existingFieldsByName = new Map<string, boolean>();
-    for (const f of table.fields) {
-        existingFieldsByName.set(f.name, true);
+    for (const field of table.fields) {
+        existingFieldsByName.set(field.name, true);
     }
 
     const missingFields: Array<{ name: string; type: string }> = [];
@@ -82,8 +114,9 @@ export const ensureFieldsExist = async (
         if (!exists) {
             if (targetType === 'existing') {
                 throw new Error(
-                    `Mapping expects existing Airtable field "${target}" in table "${table.name}", ` +
-                        `but it does not exist. Please create it in Airtable or mark the mapping as "new".`,
+                    `Field mapping error: Expected existing Airtable field "${target}" in table "${table.name}", ` +
+                        `but it does not exist. Available fields: ${table.fields.map((f) => f.name).join(', ')}. ` +
+                        `Solution: Either create the field "${target}" in Airtable, or change the mapping targetType to "new".`,
                 );
             }
 
@@ -91,13 +124,16 @@ export const ensureFieldsExist = async (
         }
     }
 
-    if (!missingFields.length) return;
+    if (!missingFields.length) {
+        console.log(`All ${dataMappings.length} required fields exist in table "${table.name}"`);
+        return;
+    }
 
+    const fieldsList = missingFields.map((field) => `"${field.name}" (type: ${field.type})`).join(', ');
     throw new Error(
-        `The following fields are missing in table "${table.name}": ` +
-            missingFields.map((f) => `"${f.name}" (${f.type})`).join(', ') +
-            `. Airtable REST API does not generally allow creating fields. ` +
-            `Please create these fields manually OR enable the schema mutation API and ` +
-            `implement field creation logic in ensureFieldsExist().`,
+        `Cannot create ${missingFields.length} missing field(s) in table "${table.name}": ${fieldsList}. ` +
+            `The Airtable REST API does not generally allow creating fields via API. ` +
+            `Solution: Please create these fields manually in Airtable, OR enable the Enterprise schema mutation API ` +
+            `and implement field creation logic in this function.`,
     );
 };

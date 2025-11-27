@@ -3,8 +3,7 @@ import type { ActorInput } from './types.js';
 import { getAirtableClient, fetchWhoAmI, deleteAllRecords, fetchExistingUniqueIds, batchWriteRecords } from './api.js';
 import { validateInput, ensureTable, ensureFieldsExist } from './validation.js';
 import { mapItemsToAirtableRecords } from './utils.js';
-
-const DATASET_BATCH_SIZE = 50;
+import { DATASET_BATCH_SIZE } from './constants.js';
 
 await Actor.init();
 
@@ -21,12 +20,15 @@ try {
 
     const cleanedMappings = dataMappings.filter((m) => m.target && m.target.trim() !== '');
 
+    console.log(`Starting Airtable import - Operation: ${operation}, Base: ${baseId}, Table: ${tableName}`);
+
     const airtable = await getAirtableClient(input);
 
     const whoami = await fetchWhoAmI(airtable);
-    console.log('Airtable user:', whoami);
+    console.log(`Authenticated as Airtable user: ${whoami.id} (scopes: ${whoami.scopes.join(', ')})`);
 
     const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings, clearOnCreate);
+    console.log(`Table verified: "${tableMeta.name}" (ID: ${tableMeta.id}) with ${tableMeta.fields.length} fields`);
 
     await ensureFieldsExist(airtable, baseId, tableMeta, cleanedMappings);
 
@@ -36,29 +38,32 @@ try {
     }
 
     if (operation === 'override') {
-        console.log(`Operation=override: deleting all records in "${tableName}"...`);
-        await deleteAllRecords(airtable, baseId, tableName);
-        console.log('All records deleted.');
+        console.log(`Operation is "override" - clearing all existing records in table "${tableName}"`);
+        const deletedCount = await deleteAllRecords(airtable, baseId, tableName);
+        console.log(`Cleared ${deletedCount} existing records before import`);
     } else if (operation === 'create' && clearOnCreate === true) {
-        console.log(`Operation=create with clearOnCreate=true: deleting all records in "${tableName}"...`);
-        await deleteAllRecords(airtable, baseId, tableName);
-        console.log('All records deleted.');
+        console.log(
+            `Operation is "create" with clearOnCreate=true - clearing all existing records in table "${tableName}"`,
+        );
+        const deletedCount = await deleteAllRecords(airtable, baseId, tableName);
+        console.log(`Cleared ${deletedCount} existing records before import`);
     }
 
     let uniqueIdSet: Set<string> | null = new Set();
     let uniqueTargetField: string | null = null;
 
     if (uniqueId) {
-        const uniqueMapping = cleanedMappings.find((m) => m.source === uniqueId);
+        const uniqueMapping = cleanedMappings.find((mapping) => mapping.source === uniqueId);
         if (uniqueMapping && uniqueMapping.target) {
             uniqueTargetField = uniqueMapping.target;
-            console.log(`Unique ID enabled. Reading existing values from Airtable field "${uniqueTargetField}"...`);
+            console.log(`Duplicate detection enabled using field "${uniqueTargetField}" (source: "${uniqueId}")`);
+            console.log(`Fetching existing unique IDs from Airtable...`);
             uniqueIdSet = await fetchExistingUniqueIds(airtable, baseId, tableName, uniqueTargetField);
-            console.log(`Found ${uniqueIdSet.size} existing unique IDs in Airtable.`);
+            console.log(`Loaded ${uniqueIdSet.size} existing unique IDs for duplicate detection`);
         } else {
             console.log(
-                'uniqueId provided but mapping not found. ' +
-                    'Duplicate check will only consider new records within this run.',
+                `Warning: uniqueId "${uniqueId}" specified but no matching mapping found. ` +
+                    `Duplicate detection will only apply to records within this import run.`,
             );
         }
     }
@@ -67,14 +72,16 @@ try {
     const datasetInfo = await dataset.getInfo();
     const totalItems = datasetInfo?.itemCount || 0;
 
-    console.log(`Dataset "${datasetId}" contains ${totalItems} items.`);
+    console.log(`Opening dataset "${datasetId}" with ${totalItems} items`);
+    console.log(`Starting import process with ${cleanedMappings.length} field mappings`);
 
     let importedCount = 0;
     let skippedDuplicates = 0;
 
     for (let offset = 0; offset < totalItems; offset += DATASET_BATCH_SIZE) {
         const limit = Math.min(DATASET_BATCH_SIZE, totalItems - offset);
-        console.log(`Processing dataset batch offset=${offset} limit=${limit}...`);
+        const batchEnd = Math.min(offset + limit, totalItems);
+        console.log(`Processing dataset batch: items ${offset + 1}-${batchEnd} of ${totalItems}`);
 
         const { items } = await dataset.getData({ offset, limit });
 
@@ -85,17 +92,23 @@ try {
         skippedDuplicates += duplicateCount;
 
         if (!records.length) {
-            console.log('No non-duplicate records to import in this batch.');
+            console.log(`Batch ${offset + 1}-${batchEnd}: No records to import (all duplicates or empty)`);
             continue;
         }
 
-        console.log(`Writing ${records.length} records to Airtable...`);
+        console.log(
+            `Batch ${offset + 1}-${batchEnd}: Writing ${records.length} records to Airtable (${duplicateCount} duplicates skipped)`,
+        );
         const created = await batchWriteRecords(airtable, baseId, tableName, records, schemaMap);
         importedCount += created;
-        console.log(`Batch written: ${created} records created.`);
+        console.log(`Batch ${offset + 1}-${batchEnd}: Successfully created ${created} records`);
     }
 
-    console.log(`Import finished. Imported ${importedCount} records. ` + `Skipped ${skippedDuplicates} duplicates.`);
+    console.log(`\n=== Import Summary ===`);
+    console.log(`Total records imported: ${importedCount}`);
+    console.log(`Total duplicates skipped: ${skippedDuplicates}`);
+    console.log(`Dataset items processed: ${totalItems}`);
+    console.log(`Target: Base "${baseId}", Table "${tableName}"`);
 
     await Actor.pushData({
         importedCount,
@@ -106,7 +119,11 @@ try {
         airtableUser: whoami,
     });
 } catch (err) {
-    console.error('Actor failed:', err);
+    console.error('\n=== Actor Failed ===');
+    console.error('Error:', err instanceof Error ? err.message : String(err));
+    if (err instanceof Error && err.stack) {
+        console.error('Stack trace:', err.stack);
+    }
     const errorMessage = err instanceof Error ? err.message : String(err);
     await Actor.fail(errorMessage);
 } finally {
