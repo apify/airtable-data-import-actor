@@ -49,7 +49,7 @@ export const ensureTable = async (
     let table = findTable(tables, tableNameOrId);
 
     if (!table && operation === 'create') {
-        console.log(`Table "${tableNameOrId}" not found. Creating new table with ${dataMappings.length} fields...`);
+        console.log(`Creating table with ${dataMappings.length} fields...`);
         const fields = dataMappings.map((mapping) => ({
             name: mapping.target,
             type: mapping.fieldType,
@@ -75,7 +75,6 @@ export const ensureTable = async (
                     `Either set "clearOnCreate" to true to clear existing data, or use "append" operation instead.`,
             );
         }
-        console.log(`Table "${tableNameOrId}" already exists. Will clear data before import (clearOnCreate=true)`);
         // If clearOnCreate is true or undefined (default behavior), allow it to proceed
         // The data clearing will be handled in main.ts
     }
@@ -125,7 +124,6 @@ export const ensureFieldsExist = async (
     }
 
     if (!missingFields.length) {
-        console.log(`All ${dataMappings.length} required fields exist in table "${table.name}"`);
         return;
     }
 
