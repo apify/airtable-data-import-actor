@@ -25,8 +25,8 @@
             "default": false
         },
         "base": {
-            "title": "Airtable base ID",
-            "description": "The ID of the Airtable base where data will be imported (for example: appXXXXXXXXXXXXXX).",
+            "title": "Airtable base name or ID",
+            "description": "The ID or name of the Airtable base where data will be imported (for example: appXXXXXXXXXXXXXX).",
             "type": "string",
             "editor": "textfield"
         },

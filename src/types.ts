@@ -69,6 +69,17 @@ export interface WhoAmIResponse {
     scopes?: string[];
 }
 
+export interface AirtableBase {
+    id: string;
+    name: string;
+    permissionLevel: string;
+}
+
+export interface AirtableBasesResponse {
+    bases: AirtableBase[];
+    offset?: string;
+}
+
 export interface MappingResult {
     records: AirtableRecord[];
     duplicateCount: number;

@@ -6,6 +6,7 @@ import type {
     AirtableTable,
     AirtableRecord,
     WhoAmIResponse,
+    AirtableBasesResponse,
 } from './types.js';
 import {
     OAUTH_ACCOUNT_FIELD,
@@ -120,6 +121,52 @@ export const createTable = async (
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
     const res = await airtable.fetch('https://api.airtable.com/v0/meta/whoami');
     return (await res.json()) as WhoAmIResponse;
+};
+
+/**
+ * Lists all bases accessible to the authenticated user
+ */
+export const listBases = async (airtable: AirtableClient): Promise<AirtableBasesResponse> => {
+    const res = await airtable.fetch('https://api.airtable.com/v0/meta/bases');
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to list bases: ${errorText}`);
+    }
+
+    return (await res.json()) as AirtableBasesResponse;
+};
+
+/**
+ * Resolves a base identifier (name or ID) to a base ID
+ * If the input is already a base ID (starts with 'app'), returns it as-is
+ * Otherwise, searches for a base with the matching name (case-insensitive)
+ */
+export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: string): Promise<string> => {
+    const trimmed = baseIdentifier.trim();
+
+    // If it looks like a base ID (starts with 'app'), return it directly
+    if (trimmed.startsWith('app')) {
+        return trimmed;
+    }
+
+    // Otherwise, fetch all bases and search by name
+    console.log(`🔍 Resolving base name "${trimmed}" to base ID...`);
+    const basesResponse = await listBases(airtable);
+
+    const normalizedName = trimmed.toLowerCase();
+    const matchingBase = basesResponse.bases.find(
+        (base) => base.name.trim().toLowerCase() === normalizedName
+    );
+
+    if (!matchingBase) {
+        throw new Error(
+            `Base "${trimmed}" not found. Available bases: ${basesResponse.bases.map((b) => b.name).join(', ')}`
+        );
+    }
+
+    console.log(`✓ Resolved "${trimmed}" to base ID: ${matchingBase.id}`);
+    return matchingBase.id;
 };
 
 /**

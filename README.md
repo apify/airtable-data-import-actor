@@ -24,7 +24,9 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 
 #### Required Fields
 
-- **Airtable Base ID**: Find this in your Airtable URL (e.g., `appXXXXXXXXXXXXXX`)
+- **Airtable Base**: Base ID (e.g., `appXXXXXXXXXXXXXX`) or base name (e.g., `My Base`)
+  - **By ID**: Find the base ID in your Airtable URL
+  - **By Name**: Use the exact base name (case-insensitive matching)
 - **Airtable Table Name**: Name of the target table (e.g., `Products`, `Contacts`)
 - **Apify Dataset ID**: Source dataset ID
 
