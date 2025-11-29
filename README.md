@@ -25,39 +25,41 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 #### Required Fields
 
 - **Airtable Base**: Base ID (e.g., `appXXXXXXXXXXXXXX`) or base name (e.g., `My Base`)
-  - **By ID**: Find the base ID in your Airtable URL
-  - **By Name**: Use the exact base name (case-insensitive matching)
+    - **By ID**: Find the base ID in your Airtable URL
+    - **By Name**: Use the exact base name (case-insensitive matching)
 - **Airtable Table Name**: Name of the target table (e.g., `Products`, `Contacts`)
 - **Apify Dataset ID**: Source dataset ID
 
-  **⚠️ IMPORTANT FOR INTEGRATIONS:** When setting up this Actor as an integration to run after another Actor, use the following variable for the Dataset ID field:
-  ```
-  {{resource.defaultDatasetId}}
-  ```
-  This automatically uses the output dataset from the previous Actor in your workflow.
+    **⚠️ IMPORTANT FOR INTEGRATIONS:** When setting up this Actor as an integration to run after another Actor, use the following variable for the Dataset ID field:
+
+    ```
+    {{resource.defaultDatasetId}}
+    ```
+
+    This automatically uses the output dataset from the previous Actor in your workflow.
 
 - **Import Operation**:
-  - `append` - Add new records (keeps existing data)
-  - `override` - Delete all records first, then import
-  - `create` - Create table if it doesn't exist
+    - `append` - Add new records (keeps existing data)
+    - `override` - Delete all records first, then import
+    - `create` - Create table if it doesn't exist
 
 - **Field Mappings**: Map source fields to Airtable columns
-  ```json
-  [
-    {
-      "source": "title",
-      "target": "Product Name",
-      "targetType": "existing",
-      "fieldType": "singleLineText"
-    },
-    {
-      "source": "price",
-      "target": "Price",
-      "targetType": "new",
-      "fieldType": "number"
-    }
-  ]
-  ```
+    ```json
+    [
+        {
+            "source": "title",
+            "target": "Product Name",
+            "targetType": "existing",
+            "fieldType": "singleLineText"
+        },
+        {
+            "source": "price",
+            "target": "Price",
+            "targetType": "new",
+            "fieldType": "number"
+        }
+    ]
+    ```
 
 #### Optional Fields
 
@@ -67,6 +69,7 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 ### Field Mapping Guide
 
 Each mapping requires:
+
 - **source**: Dataset field name (supports dot notation: `contact.email`)
 - **target**: Airtable column name
 - **targetType**: `existing` (field exists) or `new` (create if missing)
@@ -76,31 +79,31 @@ Each mapping requires:
 
 ```json
 {
-  "operation": "append",
-  "base": "appABC123456789",
-  "table": "Products",
-  "datasetId": "{{resource.defaultDatasetId}}",
-  "uniqueId": "url",
-  "dataMappings": [
-    {
-      "source": "title",
-      "target": "Product Name",
-      "targetType": "existing",
-      "fieldType": "singleLineText"
-    },
-    {
-      "source": "price",
-      "target": "Price",
-      "targetType": "existing",
-      "fieldType": "number"
-    },
-    {
-      "source": "url",
-      "target": "URL",
-      "targetType": "existing",
-      "fieldType": "singleLineText"
-    }
-  ]
+    "operation": "append",
+    "base": "appABC123456789",
+    "table": "Products",
+    "datasetId": "{{resource.defaultDatasetId}}",
+    "uniqueId": "url",
+    "dataMappings": [
+        {
+            "source": "title",
+            "target": "Product Name",
+            "targetType": "existing",
+            "fieldType": "singleLineText"
+        },
+        {
+            "source": "price",
+            "target": "Price",
+            "targetType": "existing",
+            "fieldType": "number"
+        },
+        {
+            "source": "url",
+            "target": "URL",
+            "targetType": "existing",
+            "fieldType": "singleLineText"
+        }
+    ]
 }
 ```
 

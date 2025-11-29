@@ -1,6 +1,13 @@
 import { Actor } from 'apify';
 import type { ActorInput } from './types.js';
-import { getAirtableClient, fetchWhoAmI, resolveBaseId, deleteAllRecords, fetchExistingUniqueIds, batchWriteRecords } from './api.js';
+import {
+    getAirtableClient,
+    fetchWhoAmI,
+    resolveBaseId,
+    deleteAllRecords,
+    fetchExistingUniqueIds,
+    batchWriteRecords,
+} from './api.js';
 import { validateInput, ensureTable, ensureFieldsExist } from './validation.js';
 import { mapItemsToAirtableRecords } from './utils.js';
 import { DATASET_BATCH_SIZE } from './constants.js';
@@ -16,7 +23,15 @@ try {
 
     validateInput(input);
 
-    const { operation, base: baseIdentifier, table: tableName, datasetId, uniqueId, dataMappings, clearOnCreate } = input;
+    const {
+        operation,
+        base: baseIdentifier,
+        table: tableName,
+        datasetId,
+        uniqueId,
+        dataMappings,
+        clearOnCreate,
+    } = input;
 
     const cleanedMappings = dataMappings.filter((m) => m.target && m.target.trim() !== '');
 

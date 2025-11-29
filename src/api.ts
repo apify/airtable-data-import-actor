@@ -155,13 +155,11 @@ export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: st
     const basesResponse = await listBases(airtable);
 
     const normalizedName = trimmed.toLowerCase();
-    const matchingBase = basesResponse.bases.find(
-        (base) => base.name.trim().toLowerCase() === normalizedName
-    );
+    const matchingBase = basesResponse.bases.find((base) => base.name.trim().toLowerCase() === normalizedName);
 
     if (!matchingBase) {
         throw new Error(
-            `Base "${trimmed}" not found. Available bases: ${basesResponse.bases.map((b) => b.name).join(', ')}`
+            `Base "${trimmed}" not found. Available bases: ${basesResponse.bases.map((b) => b.name).join(', ')}`,
         );
     }
 
