@@ -3,7 +3,7 @@
     "type": "object",
     "schemaVersion": 1,
     "properties": {
-        "oAuthAccount.4NisUztj4uOTblL9i": {
+        "oAuthAccount.LWsQCa0zH0JKrqzt3": {
             "title": "Airtable Account Id",
             "description": "Airtable Account Id",
             "type": "string",
@@ -83,5 +83,5 @@
             }
         }
     },
-    "required": ["oAuthAccount.4NisUztj4uOTblL9i", "operation", "base", "table", "datasetId", "dataMappings"]
+    "required": ["oAuthAccount.LWsQCa0zH0JKrqzt3", "operation", "base", "table", "datasetId", "dataMappings"]
 }

@@ -20,7 +20,7 @@ export interface DataMapping {
 }
 
 export interface ActorInput {
-    'oAuthAccount.4NisUztj4uOTblL9i': string;
+    'oAuthAccount.LWsQCa0zH0JKrqzt3': string;
     operation: OperationType;
     clearOnCreate?: boolean;
     base: string;
