@@ -138,16 +138,23 @@ export const listBases = async (airtable: AirtableClient): Promise<AirtableBases
 };
 
 /**
- * Resolves a base identifier (name or ID) to a base ID
- * If the input is already a base ID (starts with 'app'), returns it as-is
+ * Resolves a base identifier (name or ID) to a base ID and name
+ * If the input is already a base ID (starts with 'app'), returns it as-is with an optional name lookup
  * Otherwise, searches for a base with the matching name (case-insensitive)
  */
-export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: string): Promise<string> => {
+export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: string): Promise<{ id: string; name?: string }> => {
     const trimmed = baseIdentifier.trim();
 
-    // If it looks like a base ID (starts with 'app'), return it directly
+    // If it looks like a base ID (starts with 'app'), try to fetch the name
     if (trimmed.startsWith('app')) {
-        return trimmed;
+        try {
+            const basesResponse = await listBases(airtable);
+            const matchingBase = basesResponse.bases.find((base) => base.id === trimmed);
+            return { id: trimmed, name: matchingBase?.name };
+        } catch (err) {
+            // If we can't fetch the name, just return the ID
+            return { id: trimmed };
+        }
     }
 
     // Otherwise, fetch all bases and search by name
@@ -164,7 +171,7 @@ export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: st
     }
 
     console.log(`✓ Resolved "${trimmed}" to base ID: ${matchingBase.id}`);
-    return matchingBase.id;
+    return { id: matchingBase.id, name: matchingBase.name };
 };
 
 /**

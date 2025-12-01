@@ -1,0 +1,112 @@
+{
+    "actorOutputSchemaVersion": 1,
+    "title": "Airtable Import Summary",
+    "description": "Summary of the Airtable import operation including statistics and metadata",
+    "type": "object",
+    "properties": {
+        "success": {
+            "title": "Success",
+            "type": "boolean",
+            "description": "Whether the import operation completed successfully"
+        },
+        "operation": {
+            "title": "Operation Type",
+            "type": "string",
+            "description": "Type of import operation performed (append, override, or create)",
+            "enum": ["append", "override", "create"]
+        },
+        "baseId": {
+            "title": "Base ID",
+            "type": "string",
+            "description": "The Airtable base ID where data was imported"
+        },
+        "baseName": {
+            "title": "Base Name",
+            "type": "string",
+            "description": "The Airtable base name (if resolved from base identifier)"
+        },
+        "tableName": {
+            "title": "Table Name",
+            "type": "string",
+            "description": "Name of the Airtable table that received the imported data"
+        },
+        "datasetId": {
+            "title": "Dataset ID",
+            "type": "string",
+            "description": "The Apify dataset ID that was used as the source of the import"
+        },
+        "totalItems": {
+            "title": "Total Items",
+            "type": "integer",
+            "description": "Total number of items in the source dataset"
+        },
+        "importedCount": {
+            "title": "Imported Records",
+            "type": "integer",
+            "description": "Number of records successfully imported to Airtable"
+        },
+        "skippedDuplicates": {
+            "title": "Skipped Duplicates",
+            "type": "integer",
+            "description": "Number of duplicate records that were skipped during import"
+        },
+        "clearedRecords": {
+            "title": "Cleared Records",
+            "type": "integer",
+            "description": "Number of existing records that were deleted before import (for override/clearOnCreate operations)"
+        },
+        "uniqueIdField": {
+            "title": "Unique ID Field",
+            "type": "string",
+            "description": "The source field used for duplicate detection (if configured)"
+        },
+        "uniqueIdTargetField": {
+            "title": "Unique ID Target Field",
+            "type": "string",
+            "description": "The Airtable target field used for duplicate detection (if configured)"
+        },
+        "mappingsCount": {
+            "title": "Number of Field Mappings",
+            "type": "integer",
+            "description": "Number of field mappings used in the import"
+        },
+        "clearOnCreate": {
+            "title": "Clear on Create",
+            "type": "boolean",
+            "description": "Whether clearOnCreate was enabled (for create operation)"
+        },
+        "airtableUser": {
+            "title": "Airtable User",
+            "type": "object",
+            "description": "Information about the authenticated Airtable user",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Airtable user ID"
+                },
+                "scopes": {
+                    "type": "array",
+                    "description": "OAuth scopes granted to the user",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "startTime": {
+            "title": "Start Time",
+            "type": "string",
+            "description": "ISO 8601 timestamp when the import started"
+        },
+        "endTime": {
+            "title": "End Time",
+            "type": "string",
+            "description": "ISO 8601 timestamp when the import completed"
+        },
+        "duration": {
+            "title": "Duration (seconds)",
+            "type": "number",
+            "description": "Total duration of the import operation in seconds"
+        }
+    }
+}

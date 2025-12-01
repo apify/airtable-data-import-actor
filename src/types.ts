@@ -84,3 +84,24 @@ export interface MappingResult {
     records: AirtableRecord[];
     duplicateCount: number;
 }
+
+export interface ActorOutput {
+    success: boolean;
+    operation: OperationType;
+    baseId: string;
+    baseName?: string;
+    tableName: string;
+    datasetId: string;
+    totalItems: number;
+    importedCount: number;
+    skippedDuplicates: number;
+    clearedRecords?: number;
+    uniqueIdField?: string;
+    uniqueIdTargetField?: string;
+    mappingsCount: number;
+    clearOnCreate?: boolean;
+    airtableUser: WhoAmIResponse;
+    startTime: string;
+    endTime: string;
+    duration: number;
+}

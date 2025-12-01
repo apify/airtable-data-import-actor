@@ -1,5 +1,5 @@
 import { Actor } from 'apify';
-import type { ActorInput } from './types.js';
+import type { ActorInput, ActorOutput } from './types.js';
 import {
     getAirtableClient,
     fetchWhoAmI,
@@ -13,6 +13,8 @@ import { mapItemsToAirtableRecords } from './utils.js';
 import { DATASET_BATCH_SIZE } from './constants.js';
 
 await Actor.init();
+
+const startTime = new Date().toISOString();
 
 try {
     const input = (await Actor.getInput()) as ActorInput | null;
@@ -43,7 +45,9 @@ try {
     console.log(`✓ Authenticated as ${whoami.id}`);
 
     // Resolve base name to ID if necessary
-    const baseId = await resolveBaseId(airtable, baseIdentifier);
+    const baseInfo = await resolveBaseId(airtable, baseIdentifier);
+    const baseId = baseInfo.id;
+    const baseName = baseInfo.name;
 
     const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings, clearOnCreate);
     console.log(`✓ Table ready: ${tableMeta.fields.length} fields`);
@@ -55,14 +59,15 @@ try {
         schemaMap[f.name] = f.type;
     }
 
+    let clearedRecords = 0;
     if (operation === 'override') {
         console.log(`🗑️  Clearing existing records...`);
-        const deletedCount = await deleteAllRecords(airtable, baseId, tableName);
-        console.log(`✓ Cleared ${deletedCount} records`);
+        clearedRecords = await deleteAllRecords(airtable, baseId, tableName);
+        console.log(`✓ Cleared ${clearedRecords} records`);
     } else if (operation === 'create' && clearOnCreate === true) {
         console.log(`🗑️  Clearing existing records...`);
-        const deletedCount = await deleteAllRecords(airtable, baseId, tableName);
-        console.log(`✓ Cleared ${deletedCount} records`);
+        clearedRecords = await deleteAllRecords(airtable, baseId, tableName);
+        console.log(`✓ Cleared ${clearedRecords} records`);
     }
 
     let uniqueIdSet: Set<string> | null = new Set();
@@ -124,14 +129,31 @@ try {
     console.log(`   Skipped: ${skippedDuplicates}`);
     console.log(`   Total: ${totalItems}`);
 
-    await Actor.pushData({
+    const endTime = new Date().toISOString();
+    const duration = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000;
+
+    const output: ActorOutput = {
+        success: true,
+        operation,
+        baseId,
+        baseName,
+        tableName,
+        datasetId,
+        totalItems,
         importedCount,
         skippedDuplicates,
-        baseId,
-        tableName,
-        operation,
+        clearedRecords: clearedRecords > 0 ? clearedRecords : undefined,
+        uniqueIdField: uniqueId,
+        uniqueIdTargetField: uniqueTargetField || undefined,
+        mappingsCount: cleanedMappings.length,
+        clearOnCreate,
         airtableUser: whoami,
-    });
+        startTime,
+        endTime,
+        duration,
+    };
+
+    await Actor.pushData(output);
 } catch (err) {
     console.error('\n❌ Import failed');
     console.error(err instanceof Error ? err.message : String(err));

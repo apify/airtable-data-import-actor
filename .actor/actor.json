@@ -9,5 +9,35 @@
         "templateId": "js-empty",
         "generatedBy": "<FILL-IN-MODEL>"
     },
-    "dockerfile": "../Dockerfile"
+    "dockerfile": "../Dockerfile",
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Import Summary",
+            "description": "Summary of the Airtable import operation",
+            "views": {
+                "overview": {
+                    "title": "Import Overview",
+                    "transformation": {
+                        "fields": [
+                            "success",
+                            "operation",
+                            "baseName",
+                            "tableName",
+                            "totalItems",
+                            "importedCount",
+                            "skippedDuplicates",
+                            "clearedRecords",
+                            "duration"
+                        ]
+                    },
+                    "display": {
+                        "component": "table"
+                    }
+                }
+            }
+        }
+    },
+    "input": "./input_schema.json",
+    "output": "./output_schema.json"
 }
