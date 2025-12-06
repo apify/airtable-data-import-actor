@@ -121,11 +121,6 @@ try {
         const created = await batchWriteRecords(airtableClient, baseId, tableName, records, schemaMap);
         importedCount += created;
 
-        // Charge for each record imported to Airtable
-        if (created > 0) {
-            await Actor.charge({ eventName: 'import-to-airtable', count: created });
-        }
-
         const msg = duplicateCount > 0 ? ` (${duplicateCount} duplicates skipped)` : '';
         log.info(`✓ Created ${created} records${msg}`);
 
