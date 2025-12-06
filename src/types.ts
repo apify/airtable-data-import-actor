@@ -1,3 +1,5 @@
+import type Airtable from 'airtable';
+
 export type OperationType = 'Append' | 'Override' | 'Create';
 
 export type AirtableFieldType =
@@ -32,6 +34,7 @@ export interface ActorInput {
 
 export interface AirtableClient {
     token: string;
+    sdk: Airtable; // Airtable SDK instance
     fetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 

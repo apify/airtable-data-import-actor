@@ -1,3 +1,4 @@
+import Airtable from 'airtable';
 import type {
     ActorInput,
     AirtableClient,
@@ -20,9 +21,6 @@ import {
     AirtableSchemaResponseSchema,
     WhoAmIResponseSchema,
     AirtableBasesResponseSchema,
-    AirtablePaginatedRecordsSchema,
-    AirtableDeleteResponseSchema,
-    AirtableRecordsResponseSchema,
     AirtableCreateTableResponseSchema,
     validateResponse,
 } from './schemas.js';
@@ -90,7 +88,7 @@ const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Resp
 
 /**
  * Creates an Airtable client with OAuth authentication from Apify Actor input
- * All fetch calls automatically include exponential backoff retry logic for rate limiting and errors
+ * Uses the official Airtable.js SDK with automatic retry logic for rate limiting and errors
  */
 export const getAirtableClient = async (input: ActorInput): Promise<AirtableClient> => {
     const accountId = input[OAUTH_ACCOUNT_FIELD];
@@ -102,8 +100,15 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
 
     const { access_token } = account.data.data;
 
+    // Configure Airtable.js client with retry logic
+    const airtableSDK = new Airtable({
+        apiKey: access_token,
+        requestTimeout: 30000, // 30 seconds
+    });
+
     return {
         token: access_token,
+        sdk: airtableSDK,
         fetch: (url: string, opts: RequestInit = {}) =>
             fetchWithRetry(url, {
                 ...opts,
@@ -253,6 +258,7 @@ export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: st
 /**
  * Fetches all existing values for a unique identifier field from an Airtable table
  * Used for duplicate detection during imports
+ * Uses Airtable.js SDK for efficient pagination
  */
 export const fetchExistingUniqueIds = async (
     airtable: AirtableClient,
@@ -262,101 +268,72 @@ export const fetchExistingUniqueIds = async (
 ): Promise<Set<string>> => {
     if (!uniqueTargetField) return new Set();
 
-    const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
-    let offset: string | undefined;
     const values = new Set<string>();
+    const base = airtable.sdk.base(baseId);
+    const table = base(tableName);
 
-    do {
-        const url = new URL(baseUrl);
-        url.searchParams.set('pageSize', String(AIRTABLE_PAGE_SIZE));
-        if (offset) url.searchParams.set('offset', offset);
-        url.searchParams.set('fields[]', uniqueTargetField);
-
-        const res = await airtable.fetch(url.toString(), { method: 'GET' });
-        const rawData = await res.json();
-        const validated = validateResponse(AirtablePaginatedRecordsSchema, rawData, 'paginated records');
-
-        for (const record of validated.records || []) {
-            const v = record.fields?.[uniqueTargetField];
-            if (v !== undefined && v !== null) {
-                const normalized = String(v).trim().toLowerCase();
-                if (normalized) values.add(normalized);
+    await table
+        .select({
+            fields: [uniqueTargetField],
+            pageSize: AIRTABLE_PAGE_SIZE,
+        })
+        .eachPage((records, fetchNextPage) => {
+            for (const record of records) {
+                const v = record.get(uniqueTargetField);
+                if (v !== undefined && v !== null) {
+                    const normalized = String(v).trim().toLowerCase();
+                    if (normalized) values.add(normalized);
+                }
             }
-        }
-
-        offset = validated.offset;
-    } while (offset);
+            fetchNextPage();
+        });
 
     return values;
 };
 
 /**
  * Deletes all records from an Airtable table in batches
- * Respects Airtable's batch size limits (retry logic handled by client)
+ * Uses Airtable.js SDK with automatic batch handling
  */
 export const deleteAllRecords = async (
     airtable: AirtableClient,
     baseId: string,
     tableName: string,
 ): Promise<number> => {
-    const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
-    let offset: string | undefined;
+    const base = airtable.sdk.base(baseId);
+    const table = base(tableName);
     let totalDeleted = 0;
 
-    do {
-        const url = new URL(baseUrl);
-        url.searchParams.set('pageSize', String(AIRTABLE_PAGE_SIZE));
-        if (offset) url.searchParams.set('offset', offset);
+    const recordIds: string[] = [];
 
-        const res = await airtable.fetch(url.toString(), { method: 'GET' });
-        const rawData = await res.json();
-        const validated = validateResponse(AirtablePaginatedRecordsSchema, rawData, 'paginated records');
+    // Fetch all record IDs
+    await table
+        .select({
+            pageSize: AIRTABLE_PAGE_SIZE,
+        })
+        .eachPage((records, fetchNextPage) => {
+            recordIds.push(...records.map((r) => r.id));
+            fetchNextPage();
+        });
 
-        const ids = (validated.records || []).map((r) => r.id).filter((id): id is string => id !== undefined);
-        if (!ids.length) break;
+    // Delete in batches
+    for (let i = 0; i < recordIds.length; i += AIRTABLE_DELETE_BATCH_SIZE) {
+        const batch = recordIds.slice(i, i + AIRTABLE_DELETE_BATCH_SIZE);
 
-        for (let i = 0; i < ids.length; i += AIRTABLE_DELETE_BATCH_SIZE) {
-            const batch = ids.slice(i, i + AIRTABLE_DELETE_BATCH_SIZE);
-
-            const deleteUrl = new URL(baseUrl);
-            batch.forEach((id: string) => {
-                deleteUrl.searchParams.append('records[]', id);
-            });
-
-            const deleteRes = await airtable.fetch(deleteUrl.toString(), {
-                method: 'DELETE',
-            });
-
-            if (!deleteRes.ok) {
-                const errorText = await deleteRes.text();
-                try {
-                    const errorJson = JSON.parse(errorText);
-                    throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
-                } catch {
-                    throw new Error(`HTTP ${deleteRes.status}: ${errorText}`);
-                }
-            }
-
-            const deleteRawData = await deleteRes.json();
-            const deleteValidated = validateResponse(AirtableDeleteResponseSchema, deleteRawData, 'delete records');
-
-            if (deleteValidated.error) {
-                throw new Error(deleteValidated.error.message);
-            }
-
-            const deletedThisBatch = deleteValidated.records.length;
-            totalDeleted += deletedThisBatch;
+        try {
+            await table.destroy(batch);
+            totalDeleted += batch.length;
+        } catch (error: any) {
+            throw new Error(`Failed to delete records: ${error.message}`);
         }
-
-        offset = validated.offset;
-    } while (offset);
+    }
 
     return totalDeleted;
 };
 
 /**
  * Writes records to Airtable in batches with rate limiting
- * Retry logic and error handling are automatically handled by the client
+ * Uses Airtable.js SDK with automatic error handling and retries
  */
 export const batchWriteRecords = async (
     airtable: AirtableClient,
@@ -365,7 +342,8 @@ export const batchWriteRecords = async (
     records: AirtableRecord[],
     schemaMap: Record<string, string>,
 ): Promise<number> => {
-    const baseUrl = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`;
+    const base = airtable.sdk.base(baseId);
+    const table = base(tableName);
 
     let created = 0;
     let skipped = 0;
@@ -387,41 +365,16 @@ export const batchWriteRecords = async (
             continue;
         }
 
-        const res = await airtable.fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ records: batch }),
-        });
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            try {
-                const errorJson = JSON.parse(errorText);
-                throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
-            } catch {
-                throw new Error(`HTTP ${res.status}: ${errorText}`);
-            }
+        try {
+            const createdRecords = await table.create(batch);
+            created += createdRecords.length;
+        } catch (error: any) {
+            const errorMessage = error.message || String(error);
+            throw new Error(`Failed to create records: ${errorMessage}`);
         }
 
-        const rawData = await res.json();
-        const validated = validateResponse(AirtableRecordsResponseSchema, rawData, 'create records');
-
-        if (validated.error) {
-            throw new Error(validated.error.message);
-        }
-
-        const recordsCreated = validated.records.length;
-
-        if (recordsCreated === 0) {
-            skipped++;
-        } else {
-            created += recordsCreated;
-        }
-
-        // Rate limiting: wait before next request (except for the last record)
-        if (i < records.length - 1) {
+        // Rate limiting: wait before next request (except for the last batch)
+        if (i + AIRTABLE_WRITE_BATCH_SIZE < records.length) {
             await sleep(AIRTABLE_BASE_DELAY_MS);
         }
     }
