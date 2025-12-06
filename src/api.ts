@@ -1,4 +1,5 @@
 import Airtable from 'airtable';
+import { log } from 'apify';
 import type {
     ActorInput,
     AirtableClient,
@@ -47,7 +48,10 @@ const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Resp
             if (res.status === 429) {
                 if (attemptCount < maxAttempts) {
                     const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                    console.log(`⏳ Rate limited (429), retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                    log.warning(`⏳ Rate limited (429), retrying in ${retryDelay}ms`, {
+                        attempt: attemptCount,
+                        maxAttempts,
+                    });
                     await sleep(retryDelay);
                     continue;
                 } else {
@@ -59,7 +63,11 @@ const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Resp
             if (!res.ok && res.status >= 500 && res.status < 600) {
                 if (attemptCount < maxAttempts) {
                     const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                    console.log(`⏳ Server error (${res.status}), retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                    log.warning(`⏳ Server error (${res.status}), retrying in ${retryDelay}ms`, {
+                        status: res.status,
+                        attempt: attemptCount,
+                        maxAttempts,
+                    });
                     await sleep(retryDelay);
                     continue;
                 } else {
@@ -74,7 +82,11 @@ const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Resp
             // Network error or other fetch failure
             if (attemptCount < maxAttempts) {
                 const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                console.log(`⏳ Network error, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                log.warning(`⏳ Network error, retrying in ${retryDelay}ms`, {
+                    attempt: attemptCount,
+                    maxAttempts,
+                    error: error instanceof Error ? error.message : String(error),
+                });
                 await sleep(retryDelay);
             } else {
                 throw error;
@@ -191,7 +203,7 @@ export const createTable = async (
         throw new Error(validated.error?.message || 'Failed to create table');
     }
 
-    console.log(`✓ Created table "${tableName}"`);
+    log.info(`✓ Created table "${tableName}"`);
 };
 
 /**
@@ -239,7 +251,7 @@ export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: st
     }
 
     // Otherwise, fetch all bases and search by name
-    console.log(`🔍 Resolving base name "${trimmed}" to base ID...`);
+    log.info(`🔍 Resolving base name "${trimmed}" to base ID...`);
     const basesResponse = await listBases(airtable);
 
     const normalizedName = trimmed.toLowerCase();
@@ -251,7 +263,7 @@ export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: st
         );
     }
 
-    console.log(`✓ Resolved "${trimmed}" to base ID: ${matchingBase.id}`);
+    log.info(`✓ Resolved "${trimmed}" to base ID: ${matchingBase.id}`);
     return { id: matchingBase.id, name: matchingBase.name };
 };
 

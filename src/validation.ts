@@ -1,3 +1,4 @@
+import { log } from 'apify';
 import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
 import { fetchBaseSchema, findTable, createTable } from './api.js';
 
@@ -49,7 +50,7 @@ export const ensureTable = async (
     let table = findTable(tables, tableNameOrId);
 
     if (!table && operation === 'Create') {
-        console.log(`Creating table with ${dataMappings.length} fields...`);
+        log.info(`📋 Creating table with ${dataMappings.length} fields...`);
         const fields = dataMappings.map((mapping) => ({
             name: mapping.target,
             type: mapping.fieldType,
@@ -128,7 +129,7 @@ export const ensureFieldsExist = async (
     }
 
     // Create missing fields using Airtable Meta API
-    console.log(`Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
+    log.info(`➕ Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
 
     for (const field of missingFields) {
         const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables/${table.id}/fields`;
@@ -148,6 +149,6 @@ export const ensureFieldsExist = async (
             );
         }
 
-        console.log(`✓ Created field "${field.name}" (${field.type})`);
+        log.info(`✓ Created field "${field.name}" (${field.type})`);
     }
 };

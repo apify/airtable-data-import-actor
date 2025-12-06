@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { log } from 'apify';
 
 /**
  * Zod schemas for validating API responses
@@ -110,8 +111,11 @@ export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, conte
 
     if (!result.success) {
         const errorDetails = result.error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
-        console.error(`Validation failed for ${context}. Received data:`, JSON.stringify(data, null, 2));
-        console.error(`Validation errors:`, errorDetails);
+        log.error(`Validation failed for ${context}`, {
+            context,
+            receivedData: JSON.stringify(data, null, 2),
+            validationErrors: errorDetails,
+        });
         throw new Error(`Invalid ${context} response structure: ${errorDetails}`);
     }
 

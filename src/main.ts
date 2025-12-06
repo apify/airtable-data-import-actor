@@ -1,4 +1,4 @@
-import { Actor } from 'apify';
+import { Actor, log } from 'apify';
 import type { ActorInput, ActorOutput } from './types.js';
 import {
     getAirtableClient,
@@ -37,12 +37,12 @@ try {
 
     const cleanedMappings = dataMappings.filter((m) => m.target && m.target.trim() !== '');
 
-    console.log(`🚀 Starting import: ${operation} → ${tableName}`);
+    log.info(`🚀 Starting import: ${operation} → ${tableName}`);
 
     const airtableClient = await getAirtableClient(input);
 
     const whoami = await fetchWhoAmI(airtableClient);
-    console.log(`✓ Authenticated as ${whoami.id}`);
+    log.info(`✓ Authenticated as ${whoami.id}`);
 
     // Resolve base name to ID if necessary
     const baseInfo = await resolveBaseId(airtableClient, baseIdentifier);
@@ -50,7 +50,7 @@ try {
     const baseName = baseInfo.name;
 
     const tableMeta = await ensureTable(airtableClient, baseId, tableName, operation, cleanedMappings, clearOnCreate);
-    console.log(`✓ Table ready: ${tableMeta.fields.length} fields`);
+    log.info(`✓ Table ready: ${tableMeta.fields.length} fields`);
 
     await ensureFieldsExist(airtableClient, baseId, tableMeta, cleanedMappings);
 
@@ -61,9 +61,9 @@ try {
 
     let clearedRecords = 0;
     if (operation === 'Override' || (operation === 'Create' && clearOnCreate === true)) {
-        console.log(`🗑️  Clearing existing records...`);
+        log.info('🗑️  Clearing existing records...');
         clearedRecords = await deleteAllRecords(airtableClient, baseId, tableName);
-        console.log(`✓ Cleared ${clearedRecords} records`);
+        log.info(`✓ Cleared ${clearedRecords} records`);
     }
 
     let uniqueIdSet: Set<string> | null = new Set();
@@ -73,11 +73,11 @@ try {
         const uniqueMapping = cleanedMappings.find((mapping) => mapping.source === uniqueId);
         if (uniqueMapping && uniqueMapping.target) {
             uniqueTargetField = uniqueMapping.target;
-            console.log(`🔍 Checking duplicates via "${uniqueTargetField}"...`);
+            log.info(`🔍 Checking duplicates via "${uniqueTargetField}"...`);
             uniqueIdSet = await fetchExistingUniqueIds(airtableClient, baseId, tableName, uniqueTargetField);
-            console.log(`✓ Found ${uniqueIdSet.size} existing records`);
+            log.info(`✓ Found ${uniqueIdSet.size} existing records`);
         } else {
-            console.log(`⚠️  No mapping for uniqueId "${uniqueId}" - skipping duplicate check`);
+            log.warning(`⚠️  No mapping for uniqueId "${uniqueId}" - skipping duplicate check`);
         }
     }
 
@@ -85,7 +85,7 @@ try {
     const datasetInfo = await dataset.getInfo();
     const totalItems = datasetInfo?.itemCount || 0;
 
-    console.log(`📦 Processing ${totalItems} items with ${cleanedMappings.length} mappings`);
+    log.info(`📦 Processing ${totalItems} items with ${cleanedMappings.length} mappings`);
 
     let importedCount = 0;
     let skippedDuplicates = 0;
@@ -93,7 +93,7 @@ try {
     for (let offset = 0; offset < totalItems; offset += DATASET_BATCH_SIZE) {
         const limit = Math.min(DATASET_BATCH_SIZE, totalItems - offset);
         const batchEnd = Math.min(offset + limit, totalItems);
-        console.log(`Processing ${offset + 1}-${batchEnd}/${totalItems}...`);
+        log.info(`Processing ${offset + 1}-${batchEnd}/${totalItems}...`);
 
         const { items } = await dataset.getData({ offset, limit });
 
@@ -104,7 +104,7 @@ try {
         skippedDuplicates += duplicateCount;
 
         if (!records.length) {
-            console.log(`↷ Skipped (all duplicates)`);
+            log.info('↷ Skipped (all duplicates)');
             continue;
         }
 
@@ -117,13 +117,14 @@ try {
         }
 
         const msg = duplicateCount > 0 ? ` (${duplicateCount} duplicates skipped)` : '';
-        console.log(`✓ Created ${created} records${msg}`);
+        log.info(`✓ Created ${created} records${msg}`);
     }
 
-    console.log(`\n✅ Import complete!`);
-    console.log(`   Imported: ${importedCount}`);
-    console.log(`   Skipped: ${skippedDuplicates}`);
-    console.log(`   Total: ${totalItems}`);
+    log.info('✅ Import complete!', {
+        imported: importedCount,
+        skipped: skippedDuplicates,
+        total: totalItems,
+    });
 
     const endTime = new Date().toISOString();
     const duration = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000;
@@ -151,11 +152,10 @@ try {
 
     await Actor.pushData(output);
 } catch (err) {
-    console.error('\n❌ Import failed');
-    console.error(err instanceof Error ? err.message : String(err));
-    if (err instanceof Error && err.stack) {
-        console.error('\nStack trace:', err.stack);
-    }
+    log.error('❌ Import failed', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+    });
     const errorMessage = err instanceof Error ? err.message : String(err);
     await Actor.fail(errorMessage);
 } finally {
