@@ -14,7 +14,7 @@ import { DATASET_BATCH_SIZE } from './constants.js';
 
 await Actor.init();
 
-const startTime = new Date().toISOString();
+const startTime = new Date();
 
 try {
     const input = (await Actor.getInput()) as ActorInput | null;
@@ -126,8 +126,8 @@ try {
         total: totalItems,
     });
 
-    const endTime = new Date().toISOString();
-    const duration = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000;
+    const endTime = new Date();
+    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
 
     const output: ActorOutput = {
         success: true,
@@ -145,8 +145,8 @@ try {
         mappingsCount: cleanedMappings.length,
         clearOnCreate,
         airtableUser: whoami,
-        startTime,
-        endTime,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
         duration,
     };
 
