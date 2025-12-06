@@ -52,34 +52,39 @@
             "title": "Field mappings",
             "description": "List of mappings from Apify dataset fields (source) to Airtable fields (target). 'source' uses dot notation (e.g. 'metadata.headers.age'), 'target' is the Airtable field name. 'targetType' is 'existing' or 'new'. 'fieldType' describes the Airtable field type (e.g. 'singleLineText', 'multilineText', 'number').",
             "type": "array",
-            "editor": "json",
+            "editor": "schemaBased",
             "items": {
                 "type": "object",
                 "properties": {
                     "source": {
                         "type": "string",
                         "title": "Source field",
-                        "description": "Field path from the Apify dataset item. Supports dot notation (e.g. 'metadata.description')."
+                        "description": "Field path from the Apify dataset item. Supports dot notation (e.g. 'metadata.description').",
+                        "editor": "textfield"
                     },
                     "target": {
                         "type": "string",
                         "title": "Target Airtable field",
-                        "description": "Airtable field name where the value should be stored."
+                        "description": "Airtable field name where the value should be stored.",
+                        "editor": "textfield"
                     },
                     "targetType": {
                         "type": "string",
                         "title": "Target type",
                         "description": "'existing' if the field already exists in Airtable, 'new' if it should be created when missing.",
+                        "editor": "select",
                         "enum": ["existing", "new"]
                     },
                     "fieldType": {
                         "type": "string",
                         "title": "Field type",
                         "description": "Airtable field type to use when creating a new field (e.g. 'singleLineText', 'multilineText', 'number', 'checkbox').",
+                        "editor": "select",
                         "enum": ["singleLineText", "multilineText", "number", "checkbox"]
                     }
                 },
-                "required": ["source", "target", "targetType", "fieldType"]
+                "required": ["source", "target", "targetType", "fieldType"],
+                "additionalProperties": false
             }
         }
     },
