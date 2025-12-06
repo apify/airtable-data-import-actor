@@ -37,10 +37,10 @@
             "editor": "textfield"
         },
         "datasetId": {
-            "title": "Apify dataset ID",
-            "description": "ID of the Apify dataset that contains the records you want to import.",
+            "title": "Dataset",
             "type": "string",
-            "editor": "textfield"
+            "description": "Select a dataset",
+            "resourceType": "dataset"
         },
         "uniqueId": {
             "title": "Unique ID source field (optional)",
