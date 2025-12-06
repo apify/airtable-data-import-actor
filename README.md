@@ -2,6 +2,21 @@
 
 Import data from Apify datasets directly into Airtable with flexible field mapping, duplicate detection, and automatic table/field creation.
 
+## Use the Apify Extension for Airtable
+
+**For the best experience, we recommend using the [Apify Extension for Airtable](https://docs.apify.com/platform/integrations/airtable)**. The extension provides:
+
+- **Visual Field Mapping UI**: Intuitive interface to map dataset fields directly within Airtable
+- **Automatic Field Matching**: Intelligently matches source and target fields
+- **Run Actors from Airtable**: Execute Actors and tasks without leaving your base
+- **Seamless OAuth Integration**: Simple authentication flow
+
+Install it directly in Airtable: **Tools > Extensions > Search "Apify"**
+
+[Learn more about the Apify-Airtable integration →](https://docs.apify.com/platform/integrations/airtable)
+
+---
+
 ## What does this Actor do?
 
 This Actor imports data from any Apify dataset into your Airtable base. Perfect for storing web scraping results, building automated data pipelines, and creating structured databases from scraped data.
