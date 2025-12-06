@@ -235,7 +235,10 @@ export const listBases = async (airtable: AirtableClient): Promise<AirtableBases
  * If the input is already a base ID (starts with 'app'), returns it as-is with an optional name lookup
  * Otherwise, searches for a base with the matching name (case-insensitive)
  */
-export const resolveBaseId = async (airtable: AirtableClient, baseIdentifier: string): Promise<{ id: string; name?: string }> => {
+export const resolveBaseId = async (
+    airtable: AirtableClient,
+    baseIdentifier: string,
+): Promise<{ id: string; name?: string }> => {
     const trimmed = baseIdentifier.trim();
 
     // If it looks like a base ID (starts with 'app'), try to fetch the name
