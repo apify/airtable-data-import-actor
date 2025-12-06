@@ -79,7 +79,7 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 #### Optional Fields
 
 - **Unique ID Source Field**: Field name for duplicate detection (e.g., `url`, `productId`)
-- **Clear on Create**: Clear existing data when table already exists in `Create` mode
+- **Clear existing table data**: Clear existing data when table already exists in `Create` mode
 
 ### Field Mapping Guide
 
