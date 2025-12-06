@@ -87,10 +87,20 @@ try {
 
     log.info(`📦 Processing ${totalItems} items with ${cleanedMappings.length} mappings`);
 
-    let importedCount = 0;
-    let skippedDuplicates = 0;
+    // Use state to track progress for migration resilience
+    const state = await Actor.useState('import-progress', {
+        offset: 0,
+        importedCount: 0,
+        skippedDuplicates: 0,
+    });
 
-    for (let offset = 0; offset < totalItems; offset += DATASET_BATCH_SIZE) {
+    let { offset: currentOffset, importedCount, skippedDuplicates } = state;
+
+    if (currentOffset > 0) {
+        log.info(`📍 Resuming from offset ${currentOffset} (previously imported: ${importedCount})`);
+    }
+
+    for (let offset = currentOffset; offset < totalItems; offset += DATASET_BATCH_SIZE) {
         const limit = Math.min(DATASET_BATCH_SIZE, totalItems - offset);
         const batchEnd = Math.min(offset + limit, totalItems);
         log.info(`Processing ${offset + 1}-${batchEnd}/${totalItems}...`);
@@ -118,6 +128,11 @@ try {
 
         const msg = duplicateCount > 0 ? ` (${duplicateCount} duplicates skipped)` : '';
         log.info(`✓ Created ${created} records${msg}`);
+
+        // Update state after each batch for migration resilience
+        state.offset = offset + DATASET_BATCH_SIZE;
+        state.importedCount = importedCount;
+        state.skippedDuplicates = skippedDuplicates;
     }
 
     log.info('✅ Import complete!', {
