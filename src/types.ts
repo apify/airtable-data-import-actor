@@ -65,7 +65,7 @@ export interface AirtableOAuthAccountResponse {
 }
 
 export interface WhoAmIResponse {
-    id: string;
+    id?: string;
     scopes?: string[];
 }
 
