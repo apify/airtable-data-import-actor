@@ -1,8 +1,6 @@
 import type {
     ActorInput,
     AirtableClient,
-    AirtableOAuthAccountResponse,
-    AirtableSchemaResponse,
     AirtableTable,
     AirtableRecord,
     WhoAmIResponse,
@@ -17,23 +15,97 @@ import {
     AIRTABLE_RETRY_DELAYS_MS,
 } from './constants.js';
 import { normalizeCellValue } from './utils.js';
+import {
+    AirtableOAuthAccountResponseSchema,
+    AirtableSchemaResponseSchema,
+    WhoAmIResponseSchema,
+    AirtableBasesResponseSchema,
+    AirtablePaginatedRecordsSchema,
+    AirtableDeleteResponseSchema,
+    AirtableRecordsResponseSchema,
+    AirtableCreateTableResponseSchema,
+    validateResponse,
+} from './schemas.js';
+
+/**
+ * Sleep utility for delays
+ */
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Fetch wrapper with exponential backoff retry logic for rate limiting and errors
+ */
+const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Response> => {
+    const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1;
+    let attemptCount = 0;
+
+    while (attemptCount < maxAttempts) {
+        attemptCount++;
+
+        try {
+            const res = await fetch(url, opts);
+
+            // Handle rate limiting (HTTP 429)
+            if (res.status === 429) {
+                if (attemptCount < maxAttempts) {
+                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
+                    console.log(`⏳ Rate limited (429), retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                    await sleep(retryDelay);
+                    continue;
+                } else {
+                    throw new Error('Rate limit exceeded after all retry attempts');
+                }
+            }
+
+            // If response is not OK and it's a server error (5xx), retry
+            if (!res.ok && res.status >= 500 && res.status < 600) {
+                if (attemptCount < maxAttempts) {
+                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
+                    console.log(`⏳ Server error (${res.status}), retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                    await sleep(retryDelay);
+                    continue;
+                } else {
+                    // Return the response even on last attempt so caller can handle the error
+                    return res;
+                }
+            }
+
+            // Success or client error (4xx) - return response
+            return res;
+        } catch (error) {
+            // Network error or other fetch failure
+            if (attemptCount < maxAttempts) {
+                const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
+                console.log(`⏳ Network error, retrying in ${retryDelay}ms (attempt ${attemptCount}/${maxAttempts})...`);
+                await sleep(retryDelay);
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    // Should never reach here, but TypeScript needs a return
+    throw new Error('Unexpected error in fetchWithRetry');
+};
 
 /**
  * Creates an Airtable client with OAuth authentication from Apify Actor input
+ * All fetch calls automatically include exponential backoff retry logic for rate limiting and errors
  */
 export const getAirtableClient = async (input: ActorInput): Promise<AirtableClient> => {
     const accountId = input[OAUTH_ACCOUNT_FIELD];
 
     const headers = { Authorization: `Bearer ${process.env.APIFY_TOKEN}` };
     const res = await fetch(`${process.env.APIFY_API_BASE_URL}v2/actor-oauth-accounts/${accountId}`, { headers });
-    const account = (await res.json()) as AirtableOAuthAccountResponse;
+    const rawData = await res.json();
+    const account = validateResponse(AirtableOAuthAccountResponseSchema, rawData, 'OAuth account');
 
     const { access_token } = account.data.data;
 
     return {
         token: access_token,
         fetch: (url: string, opts: RequestInit = {}) =>
-            fetch(url, {
+            fetchWithRetry(url, {
                 ...opts,
                 headers: {
                     Authorization: `Bearer ${access_token}`,
@@ -49,8 +121,9 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
 export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
     const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
     const res = await airtable.fetch(url);
-    const json = (await res.json()) as AirtableSchemaResponse;
-    return json.tables || [];
+    const rawData = await res.json();
+    const validated = validateResponse(AirtableSchemaResponseSchema, rawData, 'base schema');
+    return validated.tables || [];
 };
 
 /**
@@ -106,10 +179,11 @@ export const createTable = async (
         body: JSON.stringify(payload),
     });
 
-    const json = await res.json();
+    const rawData = await res.json();
+    const validated = validateResponse(AirtableCreateTableResponseSchema, rawData, 'create table');
 
-    if (!res.ok || json.error) {
-        throw new Error(json.error?.message || 'Failed to create table');
+    if (!res.ok || validated.error) {
+        throw new Error(validated.error?.message || 'Failed to create table');
     }
 
     console.log(`✓ Created table "${tableName}"`);
@@ -120,7 +194,8 @@ export const createTable = async (
  */
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
     const res = await airtable.fetch('https://api.airtable.com/v0/meta/whoami');
-    return (await res.json()) as WhoAmIResponse;
+    const rawData = await res.json();
+    return validateResponse(WhoAmIResponseSchema, rawData, 'whoami');
 };
 
 /**
@@ -134,7 +209,8 @@ export const listBases = async (airtable: AirtableClient): Promise<AirtableBases
         throw new Error(`Failed to list bases: ${errorText}`);
     }
 
-    return (await res.json()) as AirtableBasesResponse;
+    const rawData = await res.json();
+    return validateResponse(AirtableBasesResponseSchema, rawData, 'bases list');
 };
 
 /**
@@ -197,9 +273,10 @@ export const fetchExistingUniqueIds = async (
         url.searchParams.set('fields[]', uniqueTargetField);
 
         const res = await airtable.fetch(url.toString(), { method: 'GET' });
-        const json = await res.json();
+        const rawData = await res.json();
+        const validated = validateResponse(AirtablePaginatedRecordsSchema, rawData, 'paginated records');
 
-        for (const record of json.records || []) {
+        for (const record of validated.records || []) {
             const v = record.fields?.[uniqueTargetField];
             if (v !== undefined && v !== null) {
                 const normalized = String(v).trim().toLowerCase();
@@ -207,7 +284,7 @@ export const fetchExistingUniqueIds = async (
             }
         }
 
-        offset = json.offset;
+        offset = validated.offset;
     } while (offset);
 
     return values;
@@ -215,7 +292,7 @@ export const fetchExistingUniqueIds = async (
 
 /**
  * Deletes all records from an Airtable table in batches
- * Respects Airtable's batch size limits and implements retry logic with exponential backoff
+ * Respects Airtable's batch size limits (retry logic handled by client)
  */
 export const deleteAllRecords = async (
     airtable: AirtableClient,
@@ -232,9 +309,10 @@ export const deleteAllRecords = async (
         if (offset) url.searchParams.set('offset', offset);
 
         const res = await airtable.fetch(url.toString(), { method: 'GET' });
-        const json = await res.json();
+        const rawData = await res.json();
+        const validated = validateResponse(AirtablePaginatedRecordsSchema, rawData, 'paginated records');
 
-        const ids = (json.records || []).map((r: any) => r.id);
+        const ids = (validated.records || []).map((r) => r.id).filter((id): id is string => id !== undefined);
         if (!ids.length) break;
 
         for (let i = 0; i < ids.length; i += AIRTABLE_DELETE_BATCH_SIZE) {
@@ -245,71 +323,40 @@ export const deleteAllRecords = async (
                 deleteUrl.searchParams.append('records[]', id);
             });
 
-            // Retry logic with exponential backoff
-            let attemptCount = 0;
-            let deleted = false;
-            const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1;
+            const deleteRes = await airtable.fetch(deleteUrl.toString(), {
+                method: 'DELETE',
+            });
 
-            while (attemptCount < maxAttempts && !deleted) {
-                attemptCount++;
-
+            if (!deleteRes.ok) {
+                const errorText = await deleteRes.text();
                 try {
-                    const deleteRes = await airtable.fetch(deleteUrl.toString(), {
-                        method: 'DELETE',
-                    });
-
-                    if (!deleteRes.ok) {
-                        if (deleteRes.status === 429) {
-                            // Rate limited
-                            if (attemptCount < maxAttempts) {
-                                const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                                await sleep(retryDelay);
-                                continue;
-                            } else {
-                                throw new Error('Rate limit exceeded after all retry attempts');
-                            }
-                        }
-
-                        const errorText = await deleteRes.text();
-                        try {
-                            const errorJson = JSON.parse(errorText);
-                            throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
-                        } catch {
-                            throw new Error(`HTTP ${deleteRes.status}: ${errorText}`);
-                        }
-                    }
-
-                    const deleteJson = await deleteRes.json();
-
-                    if (deleteJson.error) {
-                        throw new Error(deleteJson.error.message || JSON.stringify(deleteJson.error));
-                    }
-
-                    const deletedThisBatch = (deleteJson.records || []).length;
-                    totalDeleted += deletedThisBatch;
-                    deleted = true;
-                } catch (error) {
-                    if (attemptCount < maxAttempts) {
-                        const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                        await sleep(retryDelay);
-                    } else {
-                        throw error;
-                    }
+                    const errorJson = JSON.parse(errorText);
+                    throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
+                } catch {
+                    throw new Error(`HTTP ${deleteRes.status}: ${errorText}`);
                 }
             }
+
+            const deleteRawData = await deleteRes.json();
+            const deleteValidated = validateResponse(AirtableDeleteResponseSchema, deleteRawData, 'delete records');
+
+            if (deleteValidated.error) {
+                throw new Error(deleteValidated.error.message);
+            }
+
+            const deletedThisBatch = deleteValidated.records.length;
+            totalDeleted += deletedThisBatch;
         }
 
-        offset = json.offset;
+        offset = validated.offset;
     } while (offset);
 
     return totalDeleted;
 };
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 /**
- * Writes records to Airtable one at a time with rate limiting and retry logic
- * Handles rate limits (429) and implements exponential backoff for failed requests
+ * Writes records to Airtable in batches with rate limiting
+ * Retry logic and error handling are automatically handled by the client
  */
 export const batchWriteRecords = async (
     airtable: AirtableClient,
@@ -340,77 +387,37 @@ export const batchWriteRecords = async (
             continue;
         }
 
-        // Try to create the record with retries
-        let attemptCount = 0;
-        let recordCreated = false;
-        const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1; // Initial attempt + retries
+        const res = await airtable.fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ records: batch }),
+        });
 
-        while (attemptCount < maxAttempts && !recordCreated) {
-            attemptCount++;
-
+        if (!res.ok) {
+            const errorText = await res.text();
             try {
-                const res = await airtable.fetch(baseUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ records: batch }),
-                });
-
-                if (!res.ok) {
-                    // Handle rate limiting (HTTP 429)
-                    if (res.status === 429) {
-                        if (attemptCount < maxAttempts) {
-                            const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                            await sleep(retryDelay);
-                            continue;
-                        } else {
-                            throw new Error('Rate limit exceeded after all retry attempts');
-                        }
-                    }
-
-                    // Handle other HTTP errors
-                    const errorText = await res.text();
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
-                    } catch {
-                        throw new Error(`HTTP ${res.status}: ${errorText}`);
-                    }
-                }
-
-                const json = await res.json();
-
-                if (json.error) {
-                    throw new Error(json.error.message || JSON.stringify(json.error));
-                }
-
-                const recordsCreated = (json.records || []).length;
-
-                if (recordsCreated === 0) {
-                    // No records created, might be rate limiting or silent rejection
-                    if (attemptCount < maxAttempts) {
-                        const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                        await sleep(retryDelay);
-                        continue;
-                    } else {
-                        skipped++;
-                        recordCreated = true; // Exit retry loop
-                    }
-                } else {
-                    created += recordsCreated;
-                    recordCreated = true; // Success, exit retry loop
-                }
-            } catch (error) {
-                // On error, retry if attempts remain
-                if (attemptCount < maxAttempts) {
-                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                    await sleep(retryDelay);
-                } else {
-                    // Max attempts reached, rethrow error
-                    throw error;
-                }
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.error?.message || JSON.stringify(errorJson.error) || errorText);
+            } catch {
+                throw new Error(`HTTP ${res.status}: ${errorText}`);
             }
+        }
+
+        const rawData = await res.json();
+        const validated = validateResponse(AirtableRecordsResponseSchema, rawData, 'create records');
+
+        if (validated.error) {
+            throw new Error(validated.error.message);
+        }
+
+        const recordsCreated = validated.records.length;
+
+        if (recordsCreated === 0) {
+            skipped++;
+        } else {
+            created += recordsCreated;
         }
 
         // Rate limiting: wait before next request (except for the last record)

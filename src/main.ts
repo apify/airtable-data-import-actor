@@ -39,20 +39,20 @@ try {
 
     console.log(`🚀 Starting import: ${operation} → ${tableName}`);
 
-    const airtable = await getAirtableClient(input);
+    const airtableClient = await getAirtableClient(input);
 
-    const whoami = await fetchWhoAmI(airtable);
+    const whoami = await fetchWhoAmI(airtableClient);
     console.log(`✓ Authenticated as ${whoami.id}`);
 
     // Resolve base name to ID if necessary
-    const baseInfo = await resolveBaseId(airtable, baseIdentifier);
+    const baseInfo = await resolveBaseId(airtableClient, baseIdentifier);
     const baseId = baseInfo.id;
     const baseName = baseInfo.name;
 
-    const tableMeta = await ensureTable(airtable, baseId, tableName, operation, cleanedMappings, clearOnCreate);
+    const tableMeta = await ensureTable(airtableClient, baseId, tableName, operation, cleanedMappings, clearOnCreate);
     console.log(`✓ Table ready: ${tableMeta.fields.length} fields`);
 
-    await ensureFieldsExist(airtable, baseId, tableMeta, cleanedMappings);
+    await ensureFieldsExist(airtableClient, baseId, tableMeta, cleanedMappings);
 
     const schemaMap: Record<string, string> = {};
     for (const f of tableMeta.fields) {
@@ -60,13 +60,9 @@ try {
     }
 
     let clearedRecords = 0;
-    if (operation === 'override') {
+    if (operation === 'override' || (operation === 'create' && clearOnCreate === true)) {
         console.log(`🗑️  Clearing existing records...`);
-        clearedRecords = await deleteAllRecords(airtable, baseId, tableName);
-        console.log(`✓ Cleared ${clearedRecords} records`);
-    } else if (operation === 'create' && clearOnCreate === true) {
-        console.log(`🗑️  Clearing existing records...`);
-        clearedRecords = await deleteAllRecords(airtable, baseId, tableName);
+        clearedRecords = await deleteAllRecords(airtableClient, baseId, tableName);
         console.log(`✓ Cleared ${clearedRecords} records`);
     }
 
@@ -78,7 +74,7 @@ try {
         if (uniqueMapping && uniqueMapping.target) {
             uniqueTargetField = uniqueMapping.target;
             console.log(`🔍 Checking duplicates via "${uniqueTargetField}"...`);
-            uniqueIdSet = await fetchExistingUniqueIds(airtable, baseId, tableName, uniqueTargetField);
+            uniqueIdSet = await fetchExistingUniqueIds(airtableClient, baseId, tableName, uniqueTargetField);
             console.log(`✓ Found ${uniqueIdSet.size} existing records`);
         } else {
             console.log(`⚠️  No mapping for uniqueId "${uniqueId}" - skipping duplicate check`);
@@ -112,7 +108,7 @@ try {
             continue;
         }
 
-        const created = await batchWriteRecords(airtable, baseId, tableName, records, schemaMap);
+        const created = await batchWriteRecords(airtableClient, baseId, tableName, records, schemaMap);
         importedCount += created;
 
         // Charge for each record imported to Airtable
