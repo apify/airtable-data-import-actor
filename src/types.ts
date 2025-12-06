@@ -1,4 +1,4 @@
-export type OperationType = 'append' | 'override' | 'create';
+export type OperationType = 'Append' | 'Override' | 'Create';
 
 export type AirtableFieldType =
     | 'singleLineText'

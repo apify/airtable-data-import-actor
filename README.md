@@ -39,9 +39,9 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
     This automatically uses the output dataset from the previous Actor in your workflow.
 
 - **Import Operation**:
-    - `append` - Add new records (keeps existing data)
-    - `override` - Delete all records first, then import
-    - `create` - Create table if it doesn't exist
+    - `Append` - Add new records (keeps existing data)
+    - `Override` - Delete all records first, then import
+    - `Create` - Create table if it doesn't exist
 
 - **Field Mappings**: Map source fields to Airtable columns
     ```json
@@ -64,7 +64,7 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 #### Optional Fields
 
 - **Unique ID Source Field**: Field name for duplicate detection (e.g., `url`, `productId`)
-- **Clear on Create**: Clear existing data when table already exists in `create` mode
+- **Clear on Create**: Clear existing data when table already exists in `Create` mode
 
 ### Field Mapping Guide
 
@@ -79,7 +79,7 @@ Each mapping requires:
 
 ```json
 {
-    "operation": "append",
+    "operation": "Append",
     "base": "appABC123456789",
     "table": "Products",
     "datasetId": "{{resource.defaultDatasetId}}",

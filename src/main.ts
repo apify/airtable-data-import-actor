@@ -60,7 +60,7 @@ try {
     }
 
     let clearedRecords = 0;
-    if (operation === 'override' || (operation === 'create' && clearOnCreate === true)) {
+    if (operation === 'Override' || (operation === 'Create' && clearOnCreate === true)) {
         console.log(`🗑️  Clearing existing records...`);
         clearedRecords = await deleteAllRecords(airtableClient, baseId, tableName);
         console.log(`✓ Cleared ${clearedRecords} records`);

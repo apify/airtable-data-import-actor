@@ -11,15 +11,15 @@
         },
         "operation": {
             "title": "Import operation",
-            "description": "How to handle records in the target Airtable table before importing. 'append' keeps existing records and adds new ones. 'override' deletes all existing records first, then imports. 'create' will create the table if it does not exist, otherwise it behaves like 'append'.",
+            "description": "How to handle records in the target Airtable table before importing. 'Append' keeps existing records and adds new ones. 'Override' deletes all existing records first, then imports. 'Create' will create the table if it does not exist, otherwise it behaves like 'Append'.",
             "type": "string",
             "editor": "select",
-            "enum": ["append", "override", "create"],
-            "default": "append"
+            "enum": ["Append", "Override", "Create"],
+            "default": "Append"
         },
         "clearOnCreate": {
             "title": "Clear existing data when table exists (create mode only)",
-            "description": "Only applies when operation is 'create'. If true and the table already exists, all existing records will be deleted before importing (similar to 'override' mode). If false and the table already exists, an error will be thrown. If the table does not exist, it will be created regardless of this setting.",
+            "description": "Only applies when operation is 'Create'. If true and the table already exists, all existing records will be deleted before importing (similar to 'Override' mode). If false and the table already exists, an error will be thrown. If the table does not exist, it will be created regardless of this setting.",
             "type": "boolean",
             "editor": "checkbox",
             "default": false
@@ -32,7 +32,7 @@
         },
         "table": {
             "title": "Airtable table name",
-            "description": "Name of the Airtable table to import into. If operation is 'create' and this table does not exist, the Actor will try to create it (if Airtable permissions and APIs allow).",
+            "description": "Name of the Airtable table to import into. If operation is 'Create' and this table does not exist, the Actor will try to create it (if Airtable permissions and APIs allow).",
             "type": "string",
             "editor": "textfield"
         },

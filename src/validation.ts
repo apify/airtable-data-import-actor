@@ -10,9 +10,9 @@ export const validateInput = (input: ActorInput): void => {
 
     const cleanedMappings = dataMappings.filter((mapping) => mapping.target && mapping.target.trim() !== '');
 
-    if (!operation || !['append', 'override', 'create'].includes(operation)) {
+    if (!operation || !['Append', 'Override', 'Create'].includes(operation)) {
         throw new Error(
-            `Invalid operation "${operation || '(empty)'}". Must be one of: "append", "override", or "create".`,
+            `Invalid operation "${operation || '(empty)'}". Must be one of: "Append", "Override", or "Create".`,
         );
     }
     if (!base) {
@@ -48,7 +48,7 @@ export const ensureTable = async (
 
     let table = findTable(tables, tableNameOrId);
 
-    if (!table && operation === 'create') {
+    if (!table && operation === 'Create') {
         console.log(`Creating table with ${dataMappings.length} fields...`);
         const fields = dataMappings.map((mapping) => ({
             name: mapping.target,
@@ -66,13 +66,13 @@ export const ensureTable = async (
                     `Please verify your Airtable permissions and base configuration.`,
             );
         }
-    } else if (table && operation === 'create') {
-        // Table already exists with 'create' operation
+    } else if (table && operation === 'Create') {
+        // Table already exists with 'Create' operation
         if (clearOnCreate === false) {
             throw new Error(
                 `Table "${tableNameOrId}" already exists in base "${baseId}". ` +
-                    `Operation is set to "create" and "clearOnCreate" is false. ` +
-                    `Either set "clearOnCreate" to true to clear existing data, or use "append" operation instead.`,
+                    `Operation is set to "Create" and "clearOnCreate" is false. ` +
+                    `Either set "clearOnCreate" to true to clear existing data, or use "Append" operation instead.`,
             );
         }
         // If clearOnCreate is true or undefined (default behavior), allow it to proceed
@@ -82,7 +82,7 @@ export const ensureTable = async (
     if (!table) {
         throw new Error(
             `Table "${tableNameOrId}" was not found in base "${baseId}". ` +
-                `Available operations: Use "create" to create a new table, or verify the table name/ID is correct.`,
+                `Available operations: Use "Create" to create a new table, or verify the table name/ID is correct.`,
         );
     }
 
