@@ -4,8 +4,8 @@
     "schemaVersion": 1,
     "properties": {
         "oAuthAccount.LWsQCa0zH0JKrqzt3": {
-            "title": "Airtable Account Id",
-            "description": "Airtable Account Id",
+            "title": "Airtable",
+            "description": "Connect your Airtable using OAuth2.",
             "type": "string",
             "editor": "textfield"
         },
