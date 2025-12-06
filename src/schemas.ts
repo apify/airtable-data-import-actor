@@ -33,9 +33,10 @@ export const AirtableOAuthAccountResponseSchema = z.object({
     }),
 });
 
-// WhoAmI response
+// WhoAmI response - Airtable API may return different structures
+// Making id optional since it might not always be present
 export const WhoAmIResponseSchema = z.object({
-    id: z.string(),
+    id: z.string().optional(),
     scopes: z.array(z.string()).optional(),
 });
 
@@ -109,6 +110,8 @@ export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, conte
 
     if (!result.success) {
         const errorDetails = result.error.issues.map((e: z.ZodIssue) => `${e.path.join('.')}: ${e.message}`).join(', ');
+        console.error(`Validation failed for ${context}. Received data:`, JSON.stringify(data, null, 2));
+        console.error(`Validation errors:`, errorDetails);
         throw new Error(`Invalid ${context} response structure: ${errorDetails}`);
     }
 
