@@ -39,11 +39,15 @@ try {
 
     log.info(`🚀 Starting import: ${operation} → ${tableName}`);
 
+    log.info('Step 1: Getting Airtable client...');
     const airtableClient = await getAirtableClient(input);
+    log.info('✓ Airtable client initialized');
 
+    log.info('Step 2: Verifying authentication...');
     const whoami = await fetchWhoAmI(airtableClient);
     log.info(`✓ Authenticated as ${whoami.id}`);
 
+    log.info(`Step 3: Resolving base "${baseIdentifier}"...`);
     // Resolve base name to ID if necessary
     const baseInfo = await resolveBaseId(airtableClient, baseIdentifier);
     const baseId = baseInfo.id;
