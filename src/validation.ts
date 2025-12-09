@@ -73,8 +73,8 @@ export const ensureTable = async (
         if (clearOnCreate === false) {
             throw new Error(
                 `Table "${tableNameOrId}" already exists in base "${baseId}". ` +
-                    `Operation is set to "Create" and "clearOnCreate" is false. ` +
-                    `Either set "clearOnCreate" to true to clear existing data, or use "Append" operation instead.`,
+                    `Operation is set to "Create" and "Clear existing data when table exists" is false. ` +
+                    `Either set "Clear existing data when table exists" to true to clear existing data, or use "Append" operation instead.`,
             );
         }
         // If clearOnCreate is true or undefined (default behavior), allow it to proceed
