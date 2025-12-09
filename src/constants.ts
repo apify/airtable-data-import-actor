@@ -5,6 +5,9 @@
 // Dataset processing
 export const DATASET_BATCH_SIZE = 50;
 
+// Airtable API configuration
+export const AIRTABLE_API_BASE_URL = 'https://api.airtable.com';
+
 // Airtable API rate limiting and batch sizes
 // Note: The Airtable SDK handles exponential backoff and retries automatically
 export const AIRTABLE_BASE_DELAY_MS = 200; // 5 req/sec = 200ms between requests

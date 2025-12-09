@@ -1,5 +1,6 @@
 import { log } from 'apify';
 import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
+import { AIRTABLE_API_BASE_URL } from './constants.js';
 import { fetchBaseSchema, findTable, createTable } from './api.js';
 
 /**
@@ -131,23 +132,24 @@ export const ensureFieldsExist = async (
     // Create missing fields using Airtable Meta API
     log.info(`➕ Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
 
-    // Create a base instance to access the makeRequest method
-    const base = airtable.sdk.base(baseId);
-
     for (const field of missingFields) {
-        const response = await base.makeRequest({
+        const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables/${table.id}/fields`, {
             method: 'POST',
-            path: `/v0/meta/bases/${baseId}/tables/${table.id}/fields`,
-            body: {
+            headers: {
+                Authorization: `Bearer ${airtable.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
                 name: field.name,
                 type: field.type,
-            },
+            }),
         });
 
-        // Check for errors in the response
-        if (response.body?.error) {
+        if (!res.ok) {
+            const errorText = await res.text();
             throw new Error(
-                `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}": ${response.body.error.message || 'Unknown error'}`,
+                `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}" ` +
+                `(${res.status} ${res.statusText}): ${errorText}`
             );
         }
 

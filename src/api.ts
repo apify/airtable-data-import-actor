@@ -10,6 +10,7 @@ import type {
 } from './types.js';
 import {
     OAUTH_ACCOUNT_FIELD,
+    AIRTABLE_API_BASE_URL,
     AIRTABLE_PAGE_SIZE,
     AIRTABLE_DELETE_BATCH_SIZE,
     AIRTABLE_WRITE_BATCH_SIZE,
@@ -58,16 +59,23 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
 
 /**
  * Fetches the complete schema (tables and fields) for an Airtable base
- * Uses Airtable SDK's internal request mechanism with built-in retry logic
+ * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
-    // Create a base instance to access the makeRequest method
-    const base = airtable.sdk.base(baseId);
-    const response = await base.makeRequest({
-        method: 'GET',
-        path: `/v0/meta/bases/${baseId}/tables`,
+    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
+        headers: { Authorization: `Bearer ${airtable.token}` },
     });
-    const validated = validateResponse(AirtableSchemaResponseSchema, response.body, 'base schema');
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+            `Failed to fetch schema for base "${baseId}" (${res.status} ${res.statusText}): ${errorText}. ` +
+            `Please verify the base ID is correct and you have access to it.`
+        );
+    }
+
+    const rawData = await res.json();
+    const validated = validateResponse(AirtableSchemaResponseSchema, rawData, 'base schema');
     return validated.tables || [];
 };
 
@@ -83,7 +91,7 @@ export const findTable = (tables: AirtableTable[], identifier: string | undefine
 
 /**
  * Creates a new table in Airtable with the specified fields
- * Uses Airtable SDK's internal request mechanism with built-in retry logic
+ * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const createTable = async (
     airtable: AirtableClient,
@@ -116,15 +124,24 @@ export const createTable = async (
         fields: mappedFields,
     };
 
-    // Create a base instance to access the makeRequest method
-    const base = airtable.sdk.base(baseId);
-    const response = await base.makeRequest({
+    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
         method: 'POST',
-        path: `/v0/meta/bases/${baseId}/tables`,
-        body: payload,
+        headers: {
+            Authorization: `Bearer ${airtable.token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
     });
 
-    const validated = validateResponse(AirtableCreateTableResponseSchema, response.body, 'create table');
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+            `Failed to create table "${tableName}" in base "${baseId}" (${res.status} ${res.statusText}): ${errorText}`
+        );
+    }
+
+    const rawData = await res.json();
+    const validated = validateResponse(AirtableCreateTableResponseSchema, rawData, 'create table');
 
     if (validated.error) {
         throw new Error(validated.error?.message || 'Failed to create table');
@@ -135,32 +152,44 @@ export const createTable = async (
 
 /**
  * Fetches the authenticated user's information from Airtable
- * Uses Airtable SDK's internal request mechanism with built-in retry logic
+ * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
-    // Create a dummy base instance to access the makeRequest method
-    // The base ID doesn't matter for whoami endpoint
-    const base = airtable.sdk.base('appDummy');
-    const response = await base.makeRequest({
-        method: 'GET',
-        path: '/v0/meta/whoami',
+    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/whoami`, {
+        headers: { Authorization: `Bearer ${airtable.token}` },
     });
-    return validateResponse(WhoAmIResponseSchema, response.body, 'whoami');
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+            `Failed to verify authentication (${res.status} ${res.statusText}): ${errorText}. ` +
+            `Please check your Airtable OAuth token.`
+        );
+    }
+
+    const rawData = await res.json();
+    return validateResponse(WhoAmIResponseSchema, rawData, 'whoami');
 };
 
 /**
  * Lists all bases accessible to the authenticated user
- * Uses Airtable SDK's internal request mechanism with built-in retry logic
+ * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const listBases = async (airtable: AirtableClient): Promise<AirtableBasesResponse> => {
-    // Create a dummy base instance to access the makeRequest method
-    // The base ID doesn't matter for meta endpoints
-    const base = airtable.sdk.base('appDummy');
-    const response = await base.makeRequest({
-        method: 'GET',
-        path: '/v0/meta/bases',
+    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases`, {
+        headers: { Authorization: `Bearer ${airtable.token}` },
     });
-    return validateResponse(AirtableBasesResponseSchema, response.body, 'bases list');
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+            `Failed to list bases (${res.status} ${res.statusText}): ${errorText}. ` +
+            `Please check your Airtable OAuth token has proper permissions.`
+        );
+    }
+
+    const rawData = await res.json();
+    return validateResponse(AirtableBasesResponseSchema, rawData, 'bases list');
 };
 
 /**
