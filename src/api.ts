@@ -70,7 +70,7 @@ export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string):
         const errorText = await res.text();
         throw new Error(
             `Failed to fetch schema for base "${baseId}" (${res.status} ${res.statusText}): ${errorText}. ` +
-            `Please verify the base ID is correct and you have access to it.`
+                `Please verify the base ID is correct and you have access to it.`,
         );
     }
 
@@ -136,7 +136,7 @@ export const createTable = async (
     if (!res.ok) {
         const errorText = await res.text();
         throw new Error(
-            `Failed to create table "${tableName}" in base "${baseId}" (${res.status} ${res.statusText}): ${errorText}`
+            `Failed to create table "${tableName}" in base "${baseId}" (${res.status} ${res.statusText}): ${errorText}`,
         );
     }
 
@@ -163,7 +163,7 @@ export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIRespo
         const errorText = await res.text();
         throw new Error(
             `Failed to verify authentication (${res.status} ${res.statusText}): ${errorText}. ` +
-            `Please check your Airtable OAuth token.`
+                `Please check your Airtable OAuth token.`,
         );
     }
 
@@ -184,7 +184,7 @@ export const listBases = async (airtable: AirtableClient): Promise<AirtableBases
         const errorText = await res.text();
         throw new Error(
             `Failed to list bases (${res.status} ${res.statusText}): ${errorText}. ` +
-            `Please check your Airtable OAuth token has proper permissions.`
+                `Please check your Airtable OAuth token has proper permissions.`,
         );
     }
 

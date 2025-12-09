@@ -149,7 +149,7 @@ export const ensureFieldsExist = async (
             const errorText = await res.text();
             throw new Error(
                 `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}" ` +
-                `(${res.status} ${res.statusText}): ${errorText}`
+                    `(${res.status} ${res.statusText}): ${errorText}`,
             );
         }
 
