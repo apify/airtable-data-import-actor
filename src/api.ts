@@ -14,7 +14,6 @@ import {
     AIRTABLE_DELETE_BATCH_SIZE,
     AIRTABLE_WRITE_BATCH_SIZE,
     AIRTABLE_BASE_DELAY_MS,
-    AIRTABLE_RETRY_DELAYS_MS,
 } from './constants.js';
 import { normalizeCellValue } from './utils.js';
 import {
@@ -32,73 +31,6 @@ import {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Fetch wrapper with exponential backoff retry logic for rate limiting and errors
- */
-const fetchWithRetry = async (url: string, opts: RequestInit = {}): Promise<Response> => {
-    const maxAttempts = AIRTABLE_RETRY_DELAYS_MS.length + 1;
-    let attemptCount = 0;
-
-    while (attemptCount < maxAttempts) {
-        attemptCount++;
-
-        try {
-            const res = await fetch(url, opts);
-
-            // Handle rate limiting (HTTP 429)
-            if (res.status === 429) {
-                if (attemptCount < maxAttempts) {
-                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                    log.warning(`⏳ Rate limited (429), retrying in ${retryDelay}ms`, {
-                        attempt: attemptCount,
-                        maxAttempts,
-                    });
-                    await sleep(retryDelay);
-                    continue;
-                } else {
-                    throw new Error('Rate limit exceeded after all retry attempts');
-                }
-            }
-
-            // If response is not OK and it's a server error (5xx), retry
-            if (!res.ok && res.status >= 500 && res.status < 600) {
-                if (attemptCount < maxAttempts) {
-                    const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                    log.warning(`⏳ Server error (${res.status}), retrying in ${retryDelay}ms`, {
-                        status: res.status,
-                        attempt: attemptCount,
-                        maxAttempts,
-                    });
-                    await sleep(retryDelay);
-                    continue;
-                } else {
-                    // Return the response even on last attempt so caller can handle the error
-                    return res;
-                }
-            }
-
-            // Success or client error (4xx) - return response
-            return res;
-        } catch (error) {
-            // Network error or other fetch failure
-            if (attemptCount < maxAttempts) {
-                const retryDelay = AIRTABLE_RETRY_DELAYS_MS[attemptCount - 1];
-                log.warning(`⏳ Network error, retrying in ${retryDelay}ms`, {
-                    attempt: attemptCount,
-                    maxAttempts,
-                    error: error instanceof Error ? error.message : String(error),
-                });
-                await sleep(retryDelay);
-            } else {
-                throw error;
-            }
-        }
-    }
-
-    // Should never reach here, but TypeScript needs a return
-    throw new Error('Unexpected error in fetchWithRetry');
-};
-
-/**
  * Creates an Airtable client with OAuth authentication from Apify Actor input
  * Uses the official Airtable.js SDK with automatic retry logic for rate limiting and errors
  */
@@ -112,7 +44,7 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
 
     const { access_token } = account.data.data;
 
-    // Configure Airtable.js client with retry logic
+    // Configure Airtable.js SDK - it handles retries and rate limiting internally
     const airtableSDK = new Airtable({
         apiKey: access_token,
         requestTimeout: 30000, // 30 seconds
@@ -121,25 +53,21 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
     return {
         token: access_token,
         sdk: airtableSDK,
-        fetch: (url: string, opts: RequestInit = {}) =>
-            fetchWithRetry(url, {
-                ...opts,
-                headers: {
-                    Authorization: `Bearer ${access_token}`,
-                    ...(opts.headers || {}),
-                },
-            }),
     };
 };
 
 /**
  * Fetches the complete schema (tables and fields) for an Airtable base
+ * Uses Airtable SDK's internal request mechanism with built-in retry logic
  */
 export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
-    const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
-    const res = await airtable.fetch(url);
-    const rawData = await res.json();
-    const validated = validateResponse(AirtableSchemaResponseSchema, rawData, 'base schema');
+    // Create a base instance to access the makeRequest method
+    const base = airtable.sdk.base(baseId);
+    const response = await base.makeRequest({
+        method: 'GET',
+        path: `/v0/meta/bases/${baseId}/tables`,
+    });
+    const validated = validateResponse(AirtableSchemaResponseSchema, response.body, 'base schema');
     return validated.tables || [];
 };
 
@@ -155,7 +83,7 @@ export const findTable = (tables: AirtableTable[], identifier: string | undefine
 
 /**
  * Creates a new table in Airtable with the specified fields
- * If table name conflicts, retries with a timestamped name
+ * Uses Airtable SDK's internal request mechanism with built-in retry logic
  */
 export const createTable = async (
     airtable: AirtableClient,
@@ -163,8 +91,6 @@ export const createTable = async (
     tableName: string,
     fields: Array<{ name: string; type: string }>,
 ): Promise<void> => {
-    const path = `https://api.airtable.com/v0/meta/bases/${baseId}/tables`;
-
     // Map field types to include required options
     const mappedFields = fields.map((f) => {
         const field: any = { name: f.name, type: f.type };
@@ -190,16 +116,17 @@ export const createTable = async (
         fields: mappedFields,
     };
 
-    const res = await airtable.fetch(path, {
+    // Create a base instance to access the makeRequest method
+    const base = airtable.sdk.base(baseId);
+    const response = await base.makeRequest({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        path: `/v0/meta/bases/${baseId}/tables`,
+        body: payload,
     });
 
-    const rawData = await res.json();
-    const validated = validateResponse(AirtableCreateTableResponseSchema, rawData, 'create table');
+    const validated = validateResponse(AirtableCreateTableResponseSchema, response.body, 'create table');
 
-    if (!res.ok || validated.error) {
+    if (validated.error) {
         throw new Error(validated.error?.message || 'Failed to create table');
     }
 
@@ -208,26 +135,32 @@ export const createTable = async (
 
 /**
  * Fetches the authenticated user's information from Airtable
+ * Uses Airtable SDK's internal request mechanism with built-in retry logic
  */
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
-    const res = await airtable.fetch('https://api.airtable.com/v0/meta/whoami');
-    const rawData = await res.json();
-    return validateResponse(WhoAmIResponseSchema, rawData, 'whoami');
+    // Create a dummy base instance to access the makeRequest method
+    // The base ID doesn't matter for whoami endpoint
+    const base = airtable.sdk.base('appDummy');
+    const response = await base.makeRequest({
+        method: 'GET',
+        path: '/v0/meta/whoami',
+    });
+    return validateResponse(WhoAmIResponseSchema, response.body, 'whoami');
 };
 
 /**
  * Lists all bases accessible to the authenticated user
+ * Uses Airtable SDK's internal request mechanism with built-in retry logic
  */
 export const listBases = async (airtable: AirtableClient): Promise<AirtableBasesResponse> => {
-    const res = await airtable.fetch('https://api.airtable.com/v0/meta/bases');
-
-    if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Failed to list bases: ${errorText}`);
-    }
-
-    const rawData = await res.json();
-    return validateResponse(AirtableBasesResponseSchema, rawData, 'bases list');
+    // Create a dummy base instance to access the makeRequest method
+    // The base ID doesn't matter for meta endpoints
+    const base = airtable.sdk.base('appDummy');
+    const response = await base.makeRequest({
+        method: 'GET',
+        path: '/v0/meta/bases',
+    });
+    return validateResponse(AirtableBasesResponseSchema, response.body, 'bases list');
 };
 
 /**

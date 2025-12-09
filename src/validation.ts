@@ -131,21 +131,23 @@ export const ensureFieldsExist = async (
     // Create missing fields using Airtable Meta API
     log.info(`➕ Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
 
+    // Create a base instance to access the makeRequest method
+    const base = airtable.sdk.base(baseId);
+
     for (const field of missingFields) {
-        const url = `https://api.airtable.com/v0/meta/bases/${baseId}/tables/${table.id}/fields`;
-        const res = await airtable.fetch(url, {
+        const response = await base.makeRequest({
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+            path: `/v0/meta/bases/${baseId}/tables/${table.id}/fields`,
+            body: {
                 name: field.name,
                 type: field.type,
-            }),
+            },
         });
 
-        if (!res.ok) {
-            const errorText = await res.text();
+        // Check for errors in the response
+        if (response.body?.error) {
             throw new Error(
-                `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}": ${errorText}`,
+                `Failed to create field "${field.name}" (type: ${field.type}) in table "${table.name}": ${response.body.error.message || 'Unknown error'}`,
             );
         }
 
