@@ -1,7 +1,7 @@
 import { log } from 'apify';
 import type { ActorInput, AirtableClient, AirtableTable, DataMapping, OperationType } from './types.js';
 import { AIRTABLE_API_BASE_URL } from './constants.js';
-import { fetchBaseSchema, findTable, createTable } from './api.js';
+import { fetchBaseSchema, findTable, createTable, fetchWithRetry } from './api.js';
 
 /**
  * Validates the actor input configuration
@@ -133,7 +133,7 @@ export const ensureFieldsExist = async (
     log.info(`➕ Creating ${missingFields.length} new field(s) in table "${table.name}"...`);
 
     for (const field of missingFields) {
-        const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables/${table.id}/fields`, {
+        const res = await fetchWithRetry(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables/${table.id}/fields`, {
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${airtable.token}`,

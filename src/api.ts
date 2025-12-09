@@ -32,6 +32,51 @@ import {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Fetch wrapper with minimal exponential backoff retry logic
+ * Retries on rate limits (429) and server errors (5xx)
+ */
+export const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // Return immediately on success or client errors (except 429)
+            if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)) {
+                return response;
+            }
+
+            // Retry on rate limit (429) or server errors (5xx)
+            if (response.status === 429 || response.status >= 500) {
+                if (attempt < maxRetries) {
+                    // Minimal exponential backoff: 1s, 2s, 4s
+                    const delay = Math.pow(2, attempt) * 1000;
+                    log.warning(
+                        `Request failed with ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`,
+                    );
+                    await sleep(delay);
+                    continue;
+                }
+            }
+
+            return response;
+        } catch (error: any) {
+            lastError = error;
+            if (attempt < maxRetries) {
+                const delay = Math.pow(2, attempt) * 1000;
+                log.warning(
+                    `Network error: ${error.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`,
+                );
+                await sleep(delay);
+            }
+        }
+    }
+
+    throw lastError || new Error('Max retries exceeded');
+};
+
+/**
  * Creates an Airtable client with OAuth authentication from Apify Actor input
  * Uses the official Airtable.js SDK with automatic retry logic for rate limiting and errors
  */
@@ -62,7 +107,7 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
  * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const fetchBaseSchema = async (airtable: AirtableClient, baseId: string): Promise<AirtableTable[]> => {
-    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
+    const res = await fetchWithRetry(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
         headers: { Authorization: `Bearer ${airtable.token}` },
     });
 
@@ -124,7 +169,7 @@ export const createTable = async (
         fields: mappedFields,
     };
 
-    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
+    const res = await fetchWithRetry(`${AIRTABLE_API_BASE_URL}/v0/meta/bases/${baseId}/tables`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${airtable.token}`,
@@ -155,7 +200,7 @@ export const createTable = async (
  * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIResponse> => {
-    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/whoami`, {
+    const res = await fetchWithRetry(`${AIRTABLE_API_BASE_URL}/v0/meta/whoami`, {
         headers: { Authorization: `Bearer ${airtable.token}` },
     });
 
@@ -176,7 +221,7 @@ export const fetchWhoAmI = async (airtable: AirtableClient): Promise<WhoAmIRespo
  * Uses direct fetch since Meta API endpoints don't require SDK wrapper
  */
 export const listBases = async (airtable: AirtableClient): Promise<AirtableBasesResponse> => {
-    const res = await fetch(`${AIRTABLE_API_BASE_URL}/v0/meta/bases`, {
+    const res = await fetchWithRetry(`${AIRTABLE_API_BASE_URL}/v0/meta/bases`, {
         headers: { Authorization: `Bearer ${airtable.token}` },
     });
 
