@@ -96,6 +96,8 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
         requestTimeout: 30000, // 30 seconds
     });
 
+    // We use the sdk for most actions but some require the META api 
+    // Which the sdk cannot call, so for few actions we use fetch instead of the sdk
     return {
         token: access_token,
         sdk: airtableSDK,
