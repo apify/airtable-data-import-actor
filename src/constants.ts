@@ -19,4 +19,4 @@ export const AIRTABLE_PAGE_SIZE = 100; // Max records to fetch per page (Airtabl
 export const MAX_STRING_LENGTH = 10000;
 
 // OAuth account field name
-export const OAUTH_ACCOUNT_FIELD = 'oAuthAccount.LWsQCa0zH0JKrqzt3';
+export const OAUTH_ACCOUNT_FIELD = 'oAuthAccount.BpW1howJtlI9fdEck';
