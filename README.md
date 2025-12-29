@@ -122,13 +122,6 @@ Each mapping requires:
 }
 ```
 
-## Common Use Cases
-
-- **E-commerce Monitoring**: Store competitor prices and product data
-- **Lead Generation**: Import contact information with duplicate prevention
-- **Real Estate**: Maintain property listings from multiple sources
-- **Content Aggregation**: Collect articles, posts, or reviews
-
 ## Tips
 
 - Always use a unique identifier field (`uniqueId`) when appending to prevent duplicates
@@ -145,9 +138,3 @@ Returns a summary with imported count, duplicates skipped, and operation details
 1. Run a web scraper Actor to collect data
 2. Set this Actor as an integration with `datasetId: {{resource.defaultDatasetId}}`
 3. Data automatically flows from scraper → Airtable
-
-## Technical Details
-
-- **Runtime**: Node.js 18+
-- **Batch Size**: 1000 items
-- **API**: Uses official Airtable Web API with rate limiting
