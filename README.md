@@ -6,10 +6,10 @@ Import data from Apify datasets directly into Airtable with flexible field mappi
 
 **For the best experience, we recommend using the [Apify Extension for Airtable](https://docs.apify.com/platform/integrations/airtable)**. The extension provides:
 
-- **Visual Field Mapping UI**: Intuitive interface to map dataset fields directly within Airtable
-- **Automatic Field Matching**: Intelligently matches source and target fields
+- **Visual field mapping UI**: Map dataset fields directly within Airtable
+- **Automatic field matching**: Matches source and target fields
 - **Run Actors from Airtable**: Execute Actors and tasks without leaving your base
-- **Seamless OAuth Integration**: Simple authentication flow
+- **OAuth integration**: Simple authentication flow
 
 Install it directly in Airtable: **Tools > Extensions > Search "Apify"**
 
@@ -21,29 +21,29 @@ Install it directly in Airtable: **Tools > Extensions > Search "Apify"**
 
 This Actor imports data from any Apify dataset into your Airtable base. Perfect for storing web scraping results, building automated data pipelines, and creating structured databases from scraped data.
 
-## Key Features
+## Key features
 
-- **Flexible Import Modes**: Append, override, or create tables automatically
-- **Smart Field Mapping**: Map dataset fields to Airtable columns with dot notation support (e.g., `product.details.price`)
-- **Duplicate Detection**: Skip records that already exist based on a unique identifier
-- **Automatic Field Creation**: Create new Airtable fields on the fly
-- **Batch Processing**: Efficiently handles large datasets with automatic batching
+- **Flexible import modes**: Append, override, or create tables automatically
+- **Smart field mapping**: Map dataset fields to Airtable columns with dot notation support (e.g., `product.details.price`)
+- **Duplicate detection**: Skip records that already exist based on a unique identifier
+- **Automatic field creation**: Create new Airtable fields on the fly
+- **Batch processing**: Handles large datasets with automatic batching
 
 ## Setup
 
-### 1. Connect Airtable Account
+### 1. Connect Airtable account
 
 Authenticate with Airtable using OAuth in the Apify integration settings.
 
-### 2. Configure Import Settings
+### 2. Configure import settings
 
-#### Required Fields
+#### Required fields
 
-- **Airtable Base**: Base ID (e.g., `appXXXXXXXXXXXXXX`) or base name (e.g., `My Base`)
+- **Airtable base**: Base ID (e.g., `appXXXXXXXXXXXXXX`) or base name (e.g., `My Base`)
     - **By ID**: Find the base ID in your Airtable URL
-    - **By Name**: Use the exact base name (case-insensitive matching)
-- **Airtable Table Name**: Name of the target table (e.g., `Products`, `Contacts`)
-- **Apify Dataset ID**: Source dataset ID
+    - **By name**: Use the exact base name (case-insensitive matching)
+- **Airtable table name**: Name of the target table (e.g., `Products`, `Contacts`)
+- **Apify dataset ID**: Source dataset ID
 
     **⚠️ IMPORTANT FOR INTEGRATIONS:** When setting up this Actor as an integration to run after another Actor, use the following variable for the Dataset ID field:
 
@@ -53,12 +53,12 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
 
     This automatically uses the output dataset from the previous Actor in your workflow.
 
-- **Import Operation**:
+- **Import operation**:
     - `Append` - Add new records (keeps existing data)
     - `Override` - Delete all records first, then import
     - `Create` - Create table if it doesn't exist
 
-- **Field Mappings**: Map source fields to Airtable columns
+- **Field mappings**: Map source fields to Airtable columns
     ```json
     [
         {
@@ -76,12 +76,12 @@ Authenticate with Airtable using OAuth in the Apify integration settings.
     ]
     ```
 
-#### Optional Fields
+#### Optional fields
 
-- **Unique ID Source Field**: Field name for duplicate detection (e.g., `url`, `productId`)
+- **Unique ID source field**: Field name for duplicate detection (e.g., `url`, `productId`)
 - **Clear existing table data**: Clear existing data when table already exists in `Create` mode
 
-### Field Mapping Guide
+### Field mapping guide
 
 Each mapping requires:
 
@@ -90,7 +90,7 @@ Each mapping requires:
 - **targetType**: `existing` (field exists) or `new` (create if missing)
 - **fieldType**: `singleLineText`, `multilineText`, `number`, or `checkbox`
 
-## Example: E-commerce Product Import
+## Example: E-commerce product import
 
 ```json
 {
@@ -133,7 +133,7 @@ Each mapping requires:
 
 Returns a summary with imported count, duplicates skipped, and operation details.
 
-## Integration Workflow Example
+## Integration workflow example
 
 1. Run a web scraper Actor to collect data
 2. Set this Actor as an integration with `datasetId: {{resource.defaultDatasetId}}`
