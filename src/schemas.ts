@@ -26,10 +26,12 @@ export const AirtableSchemaResponseSchema = z.object({
 });
 
 // OAuth account response from console-backend token endpoint
-// Returns access_token and refresh_token directly at root level
+// Returns access_token, refresh_token, scope, and expiry_date at root level
 export const AirtableOAuthAccountResponseSchema = z.object({
     access_token: z.string(),
-    refresh_token: z.string().optional(),
+    refresh_token: z.string(),
+    scope: z.string(),
+    expiry_date: z.number(),
 });
 
 // WhoAmI response - Airtable API may return different structures
@@ -105,7 +107,6 @@ export const AirtableCreateTableResponseSchema = z.object({
  * Throws a descriptive error if validation fails
  */
 export function validateResponse<T>(schema: z.ZodSchema<T>, data: unknown, context: string): T {
-    console.log('inputs: ', schema, data, context)
     const result = schema.safeParse(data);
 
     if (!result.success) {

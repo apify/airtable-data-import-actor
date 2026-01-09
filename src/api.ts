@@ -91,8 +91,6 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
         headers,
     });
 
-    console.log("res", res)
-
     if (!res.ok) {
         const errorText = await res.text();
         throw new Error(
@@ -102,7 +100,6 @@ export const getAirtableClient = async (input: ActorInput): Promise<AirtableClie
     }
 
     const rawData = await res.json();
-    console.log('raw', rawData)
     const account = validateResponse(AirtableOAuthAccountResponseSchema, rawData, 'OAuth account');
 
     const { access_token } = account;
