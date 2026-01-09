@@ -25,12 +25,10 @@ export const AirtableSchemaResponseSchema = z.object({
     tables: z.array(AirtableTableSchema),
 });
 
-// OAuth account response
+// OAuth account response from console-backend token endpoint
 export const AirtableOAuthAccountResponseSchema = z.object({
     data: z.object({
-        data: z.object({
-            access_token: z.string(),
-        }),
+        access_token: z.string(),
     }),
 });
 

@@ -79,16 +79,30 @@ export const fetchWithRetry = async (url: string, options: RequestInit, maxRetri
 /**
  * Creates an Airtable client with OAuth authentication from Apify Actor input
  * Uses the official Airtable.js SDK with automatic retry logic for rate limiting and errors
+ *
+ * Token is fetched from console-backend which handles automatic refresh
+ * if the token is expired or near expiration (within 5 minutes)
  */
 export const getAirtableClient = async (input: ActorInput): Promise<AirtableClient> => {
     const accountId = input[OAUTH_ACCOUNT_FIELD];
 
-    const headers = { Authorization: `Bearer ${process.env.APIFY_TOKEN}` };
-    const res = await fetch(`${process.env.APIFY_API_BASE_URL}v2/actor-oauth-accounts/${accountId}`, { headers });
+    const headers = { 'x-apify-token': process.env.APIFY_TOKEN! };
+    const res = await fetch(`https://console-backend.apify.com/public/actor-oauth-accounts/${accountId}/token`, {
+        headers,
+    });
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+            `Failed to fetch OAuth token (${res.status} ${res.statusText}): ${errorText}. ` +
+                `Please check your Airtable OAuth configuration.`,
+        );
+    }
+
     const rawData = await res.json();
     const account = validateResponse(AirtableOAuthAccountResponseSchema, rawData, 'OAuth account');
 
-    const { access_token } = account.data.data;
+    const { access_token } = account.data;
 
     // Configure Airtable.js SDK - it handles retries and rate limiting internally
     const airtableSDK = new Airtable({
