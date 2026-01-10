@@ -1,0 +1,13 @@
+{
+    "actorOutputSchemaVersion": 1,
+    "title": "Airtable Import Results",
+    "description": "Output from the Airtable data import operation",
+    "properties": {
+        "importSummary": {
+            "title": "Import Summary",
+            "type": "string",
+            "description": "Detailed summary of the import operation including statistics, timing, and metadata",
+            "template": "{{links.apiDefaultDatasetUrl}}/items"
+        }
+    }
+}

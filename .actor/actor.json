@@ -1,0 +1,42 @@
+{
+    "actorSpecification": 1,
+    "name": "airtable-data-import-actor",
+    "title": "Airtable Data Import Actor",
+    "description": "Import data from Apify datasets directly into Airtable with flexible field mapping, duplicate detection, and automatic table/field creation.",
+    "version": "0.0",
+    "buildTag": "latest",
+    "meta": {
+        "templateId": "js-empty"
+    },
+    "dockerfile": "../Dockerfile",
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Import Summary",
+            "description": "Summary of the Airtable import operation",
+            "views": {
+                "overview": {
+                    "title": "Import Overview",
+                    "transformation": {
+                        "fields": [
+                            "success",
+                            "operation",
+                            "baseName",
+                            "tableName",
+                            "totalItems",
+                            "importedCount",
+                            "skippedDuplicates",
+                            "clearedRecords",
+                            "duration"
+                        ]
+                    },
+                    "display": {
+                        "component": "table"
+                    }
+                }
+            }
+        }
+    },
+    "input": "./input_schema.json",
+    "output": "./output_schema.json"
+}
