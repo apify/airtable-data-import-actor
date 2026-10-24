@@ -1,13 +1,88 @@
-# Apify Actors Development Guide
+# AGENTS.md
+
+`CLAUDE.md` is only an `@AGENTS.md` pointer; put instructions here.
+`.github/workflows/agents-md-maintenance.yml` keeps this file accurate inside each PR.
+
+## Project Purpose
+
+An Apify Actor that imports data from Apify datasets directly into Airtable. Supports flexible field mapping, duplicate detection, automatic table/field creation, and three import modes (Append, Override, Create).
+
+## Repository Structure
+
+```
+.actor/
+├── actor.json          # Actor metadata, version, dataset output schema
+├── input_schema.json   # Input validation and Apify Console form definition
+└── output_schema.json  # Output schema definition
+src/
+├── main.ts             # Entry point: orchestrates the import pipeline
+├── api.ts              # Airtable API calls (auth, base/table/record operations)
+├── validation.ts       # Input validation, ensureTable, ensureFieldsExist
+├── utils.ts            # mapItemsToAirtableRecords and field transformation
+├── schemas.ts          # Zod schemas for input/output
+├── types.ts            # TypeScript type definitions
+└── constants.ts        # Batch sizes, rate limit config, API URLs
+storage/                # Local storage (mirrors Cloud during development; gitignored)
+├── datasets/           # Output items (JSON objects)
+├── key_value_stores/   # Files, config, INPUT
+└── request_queues/     # Pending crawl requests
+.github/workflows/
+└── agents-md-maintenance.yml  # Keeps this file accurate inside each PR
+Dockerfile              # Container image definition
+AGENTS.md               # AI agent instructions (this file)
+CLAUDE.md               # `@AGENTS.md` pointer only
+```
+
+## Technology Stack
+
+- **Runtime**: Node.js ≥ 18, TypeScript (ESM)
+- **Apify SDK**: `apify` ^3.4.2, `crawlee` ^3.13.8
+- **Airtable SDK**: `airtable` ^0.12.2
+- **Validation**: `zod` ^4.1.13
+- **Tooling**: `tsx` (dev runner), `tsc` (build), ESLint (`@apify/eslint-config`), Prettier
+
+## Build, Test & Run
+
+```bash
+npm install          # Install dependencies
+npm run start        # Run locally with tsx (dev)
+npm run build        # Compile TypeScript to dist/
+npm run lint         # Lint with ESLint
+npm run lint:fix     # Auto-fix lint issues
+npm run format       # Format with Prettier
+apify run            # Run Actor locally via Apify CLI
+apify push           # Deploy to Apify platform
+```
+
+> No tests are currently configured (`npm test` exits with an error).
+
+## Conventions
+
+- **ESM modules**: `"type": "module"` — use `.js` extensions in imports even for `.ts` source files.
+- **Batch processing**: Dataset items are fetched in batches of 50 (`DATASET_BATCH_SIZE`). Airtable writes/deletes use batches of 10.
+- **Rate limiting**: 200ms base delay between Airtable requests; SDK handles exponential backoff.
+- **State persistence**: Uses `Actor.useState('import-progress', ...)` to resume from offset on migration/restart.
+- **Field mapping**: Supports dot-notation source paths (e.g., `contact.email`). Mappings with empty `target` are filtered out before processing.
+- **OAuth**: Airtable authentication uses the OAuth account field `oAuthAccount.BpW1howJtlI9fdEck`.
+
+## Key Notes for AI Assistants
+
+- **No tests**: Do not attempt to run `npm test` — it is intentionally unimplemented.
+- **Import extensions**: All local imports in `src/` use `.js` extensions (required for Node ESM); do not change to `.ts`.
+- **Airtable field types**: Only `singleLineText`, `multilineText`, `number`, and `checkbox` are supported for new field creation.
+- **String truncation**: Field values are capped at `MAX_STRING_LENGTH` (10,000 chars) before writing.
+- **Deployment**: `apify push` requires prior `apify login`. Ask the user before deploying (see Safety and Permissions).
+
+## Apify Actor development reference
 
 Important: Before you begin, fill in the `generatedBy` property in the meta section of `.actor/actor.json`. Replace it with the model you're currently using. This helps Apify monitor and improve AGENTS.md for specific LLM models.
 
-## What are Apify Actors?
+### What are Apify Actors?
 
 - Actors are serverless programs that run in the cloud. They're inspired by the UNIX philosophy - programs that do one thing well and can be easily combined to build complex systems.
 - Actors are programs packaged as Docker images that run in isolated containers
 
-## Core Concepts
+### Core Concepts
 
 - Accept well-defined JSON input
 - Perform isolated tasks (web scraping, automation, data processing)
@@ -15,7 +90,7 @@ Important: Before you begin, fill in the `generatedBy` property in the meta sect
 - Can run from seconds to hours or even indefinitely
 - Persist state and can be restarted
 
-## Do
+### Do
 
 - accept well-defined JSON input and produce structured JSON output
 - use Apify SDK (`apify`) for code running ON Apify platform
@@ -32,7 +107,7 @@ Important: Before you begin, fill in the `generatedBy` property in the meta sect
 - respect robots.txt, ToS, and implement rate limiting with delays
 - check which tools (cheerio/playwright/crawlee) are installed before applying guidance
 
-## Don't
+### Don't
 
 - do not rely on `Dataset.getInfo()` for final counts on Cloud platform
 - do not use browser crawlers when HTTP/Cheerio works (massive performance gains with HTTP)
@@ -44,21 +119,7 @@ Important: Before you begin, fill in the `generatedBy` property in the meta sect
 - do not use deprecated options like `requestHandlerTimeoutMillis` on CheerioCrawler (v3.x)
 - do not use `additionalHttpHeaders` - use `preNavigationHooks` instead
 
-## Commands
-
-```bash
-# Local development
-apify run                              # Run Actor locally
-
-# Authentication & deployment
-apify login                            # Authenticate account
-apify push                             # Deploy to Apify platform
-
-# Help
-apify help                             # List all commands
-```
-
-## Safety and Permissions
+### Safety and Permissions
 
 Allowed without prompt:
 
@@ -76,26 +137,11 @@ Ask first:
 - Dockerfile changes affecting builds
 - deleting datasets or key-value stores
 
-## Project Structure
-
-.actor/
-├── actor.json # Actor config: name, version, env vars, runtime settings
-├── input_schema.json # Input validation & Console form definition
-└── output_schema.json # Specifies where an Actor stores its output
-src/
-└── main.js # Actor entry point and orchestrator
-storage/ # Local storage (mirrors Cloud during development)
-├── datasets/ # Output items (JSON objects)
-├── key_value_stores/ # Files, config, INPUT
-└── request_queues/ # Pending crawl requests
-Dockerfile # Container image definition
-AGENTS.md # AI agent instructions (this file)
-
-## Actor Input Schema
+### Actor Input Schema
 
 The input schema defines the input parameters for an Actor. It's a JSON object comprising various field types supported by the Apify platform.
 
-### Structure
+#### Structure
 
 ```json
 {
@@ -109,7 +155,7 @@ The input schema defines the input parameters for an Actor. It's a JSON object c
 }
 ```
 
-### Example
+#### Example
 
 ```json
 {
@@ -158,11 +204,11 @@ The input schema defines the input parameters for an Actor. It's a JSON object c
 }
 ```
 
-## Actor Output Schema
+### Actor Output Schema
 
 The Actor output schema builds upon the schemas for the dataset and key-value store. It specifies where an Actor stores its output and defines templates for accessing that output. Apify Console uses these output definitions to display run results.
 
-### Structure
+#### Structure
 
 ```json
 {
@@ -174,7 +220,7 @@ The Actor output schema builds upon the schemas for the dataset and key-value st
 }
 ```
 
-### Example
+#### Example
 
 ```json
 {
@@ -195,7 +241,7 @@ The Actor output schema builds upon the schemas for the dataset and key-value st
 }
 ```
 
-### Output Schema Template Variables
+#### Output Schema Template Variables
 
 - `links` (object) - Contains quick links to most commonly used URLs
 - `links.publicRunUrl` (string) - Public run url in format `https://console.apify.com/view/runs/:runId`
@@ -208,11 +254,11 @@ The Actor output schema builds upon the schemas for the dataset and key-value st
 - `run.defaultDatasetId` (string) - ID of the default dataset
 - `run.defaultKeyValueStoreId` (string) - ID of the default key-value store
 
-## Dataset Schema Specification
+### Dataset Schema Specification
 
 The dataset schema defines how your Actor's output data is structured, transformed, and displayed in the Output tab in the Apify Console.
 
-### Example
+#### Example
 
 Consider an example Actor that calls `Actor.pushData()` to store data into dataset:
 
@@ -316,7 +362,7 @@ Then create the dataset schema in `.actor/dataset_schema.json`:
 }
 ```
 
-### Structure
+#### Structure
 
 ```json
 {
@@ -380,11 +426,11 @@ Then create the dataset schema in `.actor/dataset_schema.json`:
 - `label` (string, optional) - Table column header
 - `format` (string, optional) - One of: `text`, `number`, `date`, `link`, `boolean`, `image`, `array`, `object`
 
-## Key-Value Store Schema Specification
+### Key-Value Store Schema Specification
 
 The key-value store schema organizes keys into logical groups called collections for easier data management.
 
-### Example
+#### Example
 
 Consider an example Actor that calls `Actor.setValue()` to save records into the key-value store:
 
@@ -440,7 +486,7 @@ Then create the key-value store schema in `.actor/key_value_store_schema.json`:
 }
 ```
 
-### Structure
+#### Structure
 
 ```json
 {
@@ -478,7 +524,7 @@ Then create the key-value store schema in `.actor/key_value_store_schema.json`:
 
 Either `key` or `keyPrefix` must be specified for each collection, but not both.
 
-## Apify MCP Tools
+### Apify MCP Tools
 
 If MCP server is configured, use these tools for documentation:
 
@@ -487,7 +533,7 @@ If MCP server is configured, use these tools for documentation:
 
 Otherwise, reference: `@https://mcp.apify.com/`
 
-## Resources
+### Resources
 
 - [docs.apify.com/llms.txt](https://docs.apify.com/llms.txt) - Quick reference
 - [docs.apify.com/llms-full.txt](https://docs.apify.com/llms-full.txt) - Complete docs
